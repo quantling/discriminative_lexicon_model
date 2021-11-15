@@ -1,0 +1,48 @@
+Metadata-Version: 2.1
+Name: pyldl
+Version: 0.0.0
+Summary: Linear Discriminative Learning in Python
+Home-page: https://github.com/msaito8623/pyldl
+Author: Motoki Saito
+Author-email: motoki.saito@uni-tuebingen.de
+License: MIT
+Description: =============================================================
+        pyldl - Linear Discriminative Learning in Python
+        =============================================================
+        
+        *pyldl* provides several functions to perform mappings and accuracy calculations in the framework of LDL (Baayen et al., 2019).
+        
+        
+        Installation
+        ============
+        
+        .. code:: bash
+        
+            pip install --user pyldl
+        
+        
+        Documentation
+        =============
+        
+        *pyldl* uses ``sphinx`` to create a documentation manual. The documentation is hosted on `Read the Docs <http://pyult.readthedocs.io/en/latest/>`_.
+        
+        
+        Authors and Contributers
+        ========================
+        
+        *pyldl* is being developed and maintained by `Motoki Saito <https://github.com/msaito8623>`_.
+        
+        
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Topic :: Scientific/Engineering
+Provides-Extra: tests
+Provides-Extra: docs

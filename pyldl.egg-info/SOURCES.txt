@@ -1,0 +1,17 @@
+LICENSE.txt
+MANIFEST.in
+README.rst
+requirements.txt
+setup.cfg
+setup.py
+doc/Makefile
+doc/make.bat
+doc/source/conf.py
+doc/source/index.rst
+pyldl/__init__.py
+pyldl/pyldl.py
+pyldl.egg-info/PKG-INFO
+pyldl.egg-info/SOURCES.txt
+pyldl.egg-info/dependency_links.txt
+pyldl.egg-info/requires.txt
+pyldl.egg-info/top_level.txt
