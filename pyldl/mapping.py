@@ -2,8 +2,6 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 from multiprocessing import Pool
-import scipy.spatial.distance as spd
-
 
 def to_ngram (x, gram=2, unique=True, keep_order=True):
     x = '#{}#'.format(x)
@@ -188,95 +186,4 @@ def gen_chat (smat=None, gmat=None, cmat=None, hmat=None):
     else:
         raise ValueError('(S, G), (S, C), or (H, C) is necessary.')
     return chat
-
-def functional_load (cue, fmat, word, smat, method='corr'):
-    cvec = fmat.loc[cue,:]
-    wvec = smat.loc[word,:]
-    if method=='corr':
-        fload = float(xr.corr(cvec, wvec).values)
-    elif method=='mse':
-        fload = float(((cvec-wvec)**2).mean().values)
-    else:
-        raise ValueError('method must be corr or mse.')
-    return fload
-
-def semantic_support (word, cue, cmat):
-    return float(cmat.loc[word,cue].values)
-
-def prod_acc (word, cmat, chat, method='corr'):
-    cmvec = cmat.loc[word,:].astype(int)
-    chvec = chat.loc[word,:]
-    if method=='corr':
-        chacc = float(xr.corr(cmvec, chvec).values)
-    elif method=='mse':
-        chacc = float(((cmvec-chvec)**2).mean().values)
-    else:
-        raise ValueError('method must be corr or mse.')
-    return chacc
-
-def uncertainty (word, hat, mat, method='cosine', distance=False):
-    if distance:
-        distance = False
-        print('WARNING: The current version of this function allows only distance=False. Therefore, distance was reset to False.')
-    def normalize (x):
-        x = np.array(x)
-        return (x - x.min()) / (x.max()-x.min())
-    coss = spd.cdist(np.tile(hat.loc[word,:], (1,1)), np.array(mat), method)
-    if distance:
-        pass
-    else:
-        coss = 1 - coss
-    coss = normalize(coss[0,:])
-    coss.sort()
-    coss = sum([ i*j for i,j in enumerate(coss) ])
-    return coss
-
-def vector_length (word, smat, method='l1norm'):
-    # Only l1norm is available now.
-    return np.absolute(smat.loc[word,:].values).sum()
-
-
-### Below is not necessary for the current project. ###
-### But they need to be included in the package 'pyldl' ###
-
-def accuracy (hat, mat, max_guess=1, method='cosine', distance=False):
-    coss = spd.cdist(np.array(hat), np.array(mat), method)
-    if distance:
-        pos1 = [np.argmin(coss, axis=1)]
-        sign = 1
-    else:
-        coss = 1 - coss
-        pos1 = [np.argmax(coss, axis=1)]
-        sign = -1
-    assert isinstance(max_guess, int)
-    if max_guess>1:
-        pos = [ np.apply_along_axis(lambda x: np.argsort(x)[(sign*i)], 1, coss) for i in range(2,max_guess+1) ]
-    else:
-        pos = []
-    pos = pos1 + pos
-    prds = [ [ mat.word.values[j] for j in i ] for i in pos ]
-    hits = [ [ j==k for j,k in zip(i,hat.word.values) ] for i in prds ]
-    if len(prds)==1:
-        prds = [ pd.DataFrame({'pred':j}) for j in prds ]
-        hits = [ pd.DataFrame({'acc':j}) for j in hits ]
-    else:
-        prds = [ pd.DataFrame({'pred{:d}'.format(i+1):j}) for i,j in enumerate(prds) ]
-        hits = [ pd.DataFrame({'acc{:d}'.format(i+1):j}) for i,j in enumerate(hits) ]
-    prds = pd.concat(prds, axis=1)
-    hits = pd.concat(hits, axis=1)
-    wrds = pd.DataFrame({'WordDISC':hat.word.values})
-    dddd = pd.concat([wrds,prds,hits], axis=1)
-    return dddd
-
-def predict (word, hat, mat, method='cosine', distance=False):
-    hat = np.tile(hat.loc[word,:], (1,1))
-    coss = spd.cdist(np.array(hat), np.array(mat), method)
-    if distance:
-        sign = 1
-    else:
-        coss = 1 - coss
-        sign = -1
-    coss = coss[0,:]
-    pred = mat.word.values[np.argsort(sign*coss)]
-    return pd.Series(pred)
 
