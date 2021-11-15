@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: pyldl
-Version: 0.0.0
+Version: 0.2
 Summary: Linear Discriminative Learning in Python
 Home-page: https://github.com/msaito8623/pyldl
 Author: Motoki Saito
