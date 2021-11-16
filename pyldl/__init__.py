@@ -43,7 +43,7 @@ def sysinfo():
     general = ('General Information\n'
                '-------------------\n'
                'Python version: {}\n'
-               'Pyult version: {}\n\n').format(sys.version.split()[0], __version__)
+               'Pyldl version: {}\n\n').format(sys.version.split()[0], __version__)
 
     uname = os.uname()
     osinfo = ('Operating System\n'

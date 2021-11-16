@@ -2,7 +2,12 @@ import pandas as pd
 import numpy as np
 import scipy.spatial.distance as spd
 
-def accuracy (hat, mat, max_guess=1, method='cosine', distance=False):
+def accuracy (hat, mat, method='cosine', distance=False):
+    pred = predict_df(hat, mat, max_guess=1, method=method, distance=distance)
+    acc = pred.acc.sum / len(pred)
+    return acc
+
+def predict_df (hat, mat, max_guess=1, method='cosine', distance=False):
     coss = spd.cdist(np.array(hat), np.array(mat), method)
     if distance:
         pos1 = [np.argmin(coss, axis=1)]
