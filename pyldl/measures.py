@@ -1,6 +1,7 @@
 import numpy as np
 import xarray as xr
 import scipy.spatial.distance as spd
+import pyldl.mapping as pmap
 
 def functional_load (cue, fmat, word, smat, method='corr'):
     cvec = fmat.loc[cue,:]
@@ -13,8 +14,17 @@ def functional_load (cue, fmat, word, smat, method='corr'):
         raise ValueError('method must be corr or mse.')
     return fload
 
-def semantic_support (word, cue, cmat):
-    return float(cmat.loc[word,cue].values)
+def semantic_support (word, cue, chat):
+    return float(chat.loc[word,cue].values)
+
+def semantic_support_word (word, chat):
+    cuelen = list(set([ len(i) for i in chat.cues.values ]))
+    if len(cuelen)!=1:
+        raise('Different lengths of cues were detected. Use the "gram" argument when the C-matrix you provide has more than one length of cues.')
+    else:
+        gram = cuelen[0]
+        cues = pmap.to_ngram(x=word, gram=gram)
+    return float(chat.loc[word,cues].sum().values)
 
 def prod_acc (word, cmat, chat, method='corr'):
     cmvec = cmat.loc[word,:].astype(int)
