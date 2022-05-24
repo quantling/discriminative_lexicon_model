@@ -7,11 +7,13 @@ In the following, I will describe the basic usage of pyldl. For more details abo
 Installation
 ============
 
-First, you need to install *pyldl*. *pyldl* has been tested so far only on 64-bit Linux systems.
+*pyldl* is not available on PyPI yet. So, you need to clone it before installing it locally.
 
 .. code:: bash
 
-    pip install --user pyldl
+    git clone https://github.com/msaito8623/pyldl
+    pip install -e /path/to/the/repo
+
 
 
 Train an Linear Discriminative Learning model
