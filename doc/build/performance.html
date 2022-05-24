@@ -1,0 +1,168 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Performance measures &#8212; pyldl  documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="performance-measures">
+<h1>Performance measures<a class="headerlink" href="#performance-measures" title="Permalink to this headline">¶</a></h1>
+<p>To illustrate the performance measures, this section will use the same matrices as used in the examples in the section <a class="reference internal" href="mapping.html#linear-discriminative-learning"><span class="std std-ref">Linear Discriminative Learning</span></a>. See the section for more detail about the matrices and how to construct them.</p>
+<div class="section" id="prediction-accuracy">
+<h2>Prediction accuracy<a class="headerlink" href="#prediction-accuracy" title="Permalink to this headline">¶</a></h2>
+<p>pyldl.performance.accuracy returns how many words are correcly predicted.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">pyldl.mapping</span> <span class="k">as</span> <span class="nn">pmap</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">pyldl.performance</span> <span class="k">as</span> <span class="nn">lp</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">words</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;walk&#39;</span><span class="p">,</span><span class="s1">&#39;walked&#39;</span><span class="p">,</span><span class="s1">&#39;walks&#39;</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cmat</span>  <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_cmat</span><span class="p">(</span><span class="n">words</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">infl</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s1">&#39;Word&#39;</span><span class="p">:[</span><span class="s1">&#39;walk&#39;</span><span class="p">,</span><span class="s1">&#39;walked&#39;</span><span class="p">,</span><span class="s1">&#39;walks&#39;</span><span class="p">],</span> <span class="s1">&#39;Lemma&#39;</span><span class="p">:[</span><span class="s1">&#39;walk&#39;</span><span class="p">,</span><span class="s1">&#39;walk&#39;</span><span class="p">,</span><span class="s1">&#39;walk&#39;</span><span class="p">],</span> <span class="s1">&#39;Tense&#39;</span><span class="p">:[</span><span class="s1">&#39;PRES&#39;</span><span class="p">,</span><span class="s1">&#39;PAST&#39;</span><span class="p">,</span><span class="s1">&#39;PRES&#39;</span><span class="p">]})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">smat</span> <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_smat_sim</span><span class="p">(</span><span class="n">infl</span><span class="p">,</span> <span class="n">dim_size</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">shat</span> <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_shat</span><span class="p">(</span><span class="n">cmat</span><span class="o">=</span><span class="n">cmat</span><span class="p">,</span> <span class="n">smat</span><span class="o">=</span><span class="n">smat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">chat</span> <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_chat</span><span class="p">(</span><span class="n">smat</span><span class="o">=</span><span class="n">smat</span><span class="p">,</span> <span class="n">cmat</span><span class="o">=</span><span class="n">cmat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lp</span><span class="o">.</span><span class="n">accuracy</span><span class="p">(</span><span class="n">chat</span><span class="p">,</span> <span class="n">cmat</span><span class="p">)</span>
+<span class="go">1.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lp</span><span class="o">.</span><span class="n">accuracy</span><span class="p">(</span><span class="n">shat</span><span class="p">,</span> <span class="n">smat</span><span class="p">)</span>
+<span class="go">1.0</span>
+</pre></div>
+</div>
+<p>Since this toy example is so tiny, all the words are perfectlly correctly predicted.</p>
+</div>
+<div class="section" id="prediction-dataframes">
+<h2>Prediction dataframes<a class="headerlink" href="#prediction-dataframes" title="Permalink to this headline">¶</a></h2>
+<p>You can see which word is predicted correctly in more details with pyldl.performance.predict_df.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">lp</span><span class="o">.</span><span class="n">predict_df</span><span class="p">(</span><span class="n">chat</span><span class="p">,</span> <span class="n">cmat</span><span class="p">)</span>
+<span class="go">  WordDISC    pred   acc</span>
+<span class="go">0     walk    walk  True</span>
+<span class="go">1   walked  walked  True</span>
+<span class="go">2    walks   walks  True</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lp</span><span class="o">.</span><span class="n">predict_df</span><span class="p">(</span><span class="n">shat</span><span class="p">,</span> <span class="n">smat</span><span class="p">)</span>
+<span class="go">  WordDISC    pred   acc</span>
+<span class="go">0     walk    walk  True</span>
+<span class="go">1   walked  walked  True</span>
+<span class="go">2    walks   walks  True</span>
+</pre></div>
+</div>
+<p>The leftmost column “WordDISC” is the target word, or the correct answers. The middle column “pred” is the predictions by the model. The right column “acc” shows is the predictions are correct or not.</p>
+<p>You can blend in the model’s second guesses and more by setting the argument “max_guess”.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">lp</span><span class="o">.</span><span class="n">predict_df</span><span class="p">(</span><span class="n">chat</span><span class="p">,</span> <span class="n">cmat</span><span class="p">,</span> <span class="n">max_guess</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="go">  WordDISC   pred1  pred2  acc1   acc2</span>
+<span class="go">0     walk    walk  walks  True  False</span>
+<span class="go">1   walked  walked   walk  True  False</span>
+<span class="go">2    walks   walks   walk  True  False</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lp</span><span class="o">.</span><span class="n">predict_df</span><span class="p">(</span><span class="n">shat</span><span class="p">,</span> <span class="n">smat</span><span class="p">,</span> <span class="n">max_guess</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="go">  WordDISC   pred1   pred2  acc1   acc2</span>
+<span class="go">0     walk    walk  walked  True  False</span>
+<span class="go">1   walked  walked   walks  True  False</span>
+<span class="go">2    walks   walks  walked  True  False</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="obtain-predictions-for-a-particular-word">
+<h2>Obtain predictions for a particular word<a class="headerlink" href="#obtain-predictions-for-a-particular-word" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">lp</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="s1">&#39;walked&#39;</span><span class="p">,</span> <span class="n">chat</span><span class="p">,</span> <span class="n">cmat</span><span class="p">)</span>
+<span class="go">0    walked</span>
+<span class="go">1      walk</span>
+<span class="go">2     walks</span>
+<span class="go">dtype: object</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lp</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="s1">&#39;walked&#39;</span><span class="p">,</span> <span class="n">shat</span><span class="p">,</span> <span class="n">smat</span><span class="p">)</span>
+<span class="go">0    walked</span>
+<span class="go">1     walks</span>
+<span class="go">2      walk</span>
+<span class="go">dtype: object</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">pyldl</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Motoki Saito.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.2.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/performance.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

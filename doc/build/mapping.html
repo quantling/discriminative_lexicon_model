@@ -1,0 +1,250 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Linear Discriminative Learning &#8212; pyldl  documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="linear-discriminative-learning">
+<h1>Linear Discriminative Learning<a class="headerlink" href="#linear-discriminative-learning" title="Permalink to this headline">¶</a></h1>
+<p>Linear Discriminative Learning (LDL) <a class="footnote-reference brackets" href="#id10" id="id1">1</a> was developed against the backgroud of Naive Discriminative Learning (NDL) <a class="footnote-reference brackets" href="#id11" id="id2">2</a>. NDL is based on the Rescorla-Wagner learning rule <a class="footnote-reference brackets" href="#id12" id="id3">3</a>. The learning rule updates associations between cues (e.g., word forms) and outcomes (e.g., meanings) incrementally, based on cooccurrences of cues and outcomes. Incrementally learned associations can asymptote an equilibrium, where association strengths stay almost constant with (almost) no more updates. Such an equilibrium state can theoretically be estimated without incrementally learning associations. The “endstate-of-learning” of the Rescorla-Wagner learning rule is the Danks equation <a class="footnote-reference brackets" href="#id13" id="id4">4</a>.</p>
+<p>NDL only accepts binary inputs and outputs. Cues or outcomes are present (1) or absent (0). LDL loosenes this constrainty and generalizes NDL so that cues and outcomes can also take real values. For the current implementation, LDL adopts the real-value counterpart of the Danks equation. In other words, LDL estimates the equilibrium state of associations between cues and outcomes at once, without incrementally learning the associations. The method of estimating the equilibrium associations is mathematically equivalent to multivariate regression, where multiple continuous predictors and response variables are accepted. For more detail, see <a class="footnote-reference brackets" href="#id10" id="id5">1</a> and <a class="footnote-reference brackets" href="#id14" id="id6">5</a>.</p>
+<p>To estimate associations (or weight matrices) between cues and outcomes, LDL requires two matrices. One is a C-matrix (i.e., <span class="math notranslate nohighlight">\(\mathbf{C}\)</span>), which can also be called a form matrix or a cue matrix. <span class="math notranslate nohighlight">\(\mathbf{C}\)</span> has words as rows and sublexical units (e.g., triphones) as columns. Each row represents a form vector of a word. In the current implementation, each form vector is coded 1 where the triphone is contained in the word and 0 otherwise.</p>
+<p>With pyldl, you can create a <span class="math notranslate nohighlight">\(\mathbf{C}\)</span> from a list of words by using pyldl.mapping.gen_cmat.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">pyldl.mapping</span> <span class="k">as</span> <span class="nn">pmap</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">words</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;walk&#39;</span><span class="p">,</span><span class="s1">&#39;walked&#39;</span><span class="p">,</span><span class="s1">&#39;walks&#39;</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cmat</span>  <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_cmat</span><span class="p">(</span><span class="n">words</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cmat</span>
+<span class="go">&lt;xarray.DataArray (word: 3, cues: 9)&gt;</span>
+<span class="go">array([[ True,  True, False, False, False,  True, False, False,  True],</span>
+<span class="go">       [ True,  True,  True,  True, False, False,  True, False,  True],</span>
+<span class="go">       [ True,  True, False, False,  True, False, False,  True,  True]])</span>
+<span class="go">Coordinates:</span>
+<span class="go">  * word     (word) &lt;U6 &#39;walk&#39; &#39;walked&#39; &#39;walks&#39;</span>
+<span class="go">  * cues     (cues) &lt;U3 &#39;#wa&#39; &#39;alk&#39; &#39;ed#&#39; &#39;ked&#39; &#39;ks#&#39; &#39;lk#&#39; &#39;lke&#39; &#39;lks&#39; &#39;wal&#39;</span>
+</pre></div>
+</div>
+<p>The other matrix LDL requires is a S-matrix (i.e., <span class="math notranslate nohighlight">\(\mathbf{S}\)</span>). <span class="math notranslate nohighlight">\(\mathbf{S}\)</span> can also be called a meaning matrix or an outcome matrix. <span class="math notranslate nohighlight">\(\mathbf{S}\)</span> also has words as rows as <span class="math notranslate nohighlight">\(\mathbf{C}\)</span>, but <span class="math notranslate nohighlight">\(\mathbf{S}\)</span>’s columns are semantic dimensions. Therefore, rows of <span class="math notranslate nohighlight">\(\mathbf{S}\)</span> can be understood as semantic vectors of words.</p>
+<p>While <span class="math notranslate nohighlight">\(\mathbf{S}\)</span> can be obtained by embedding techniques such as word2vec, pyldl offers a way of approximating words’ semantic vectors by those words’ inflectional information. The semantic vectors created in this method are called “simulated semantic vectors” <a class="footnote-reference brackets" href="#id15" id="id7">6</a>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">infl</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s1">&#39;Word&#39;</span><span class="p">:[</span><span class="s1">&#39;walk&#39;</span><span class="p">,</span><span class="s1">&#39;walked&#39;</span><span class="p">,</span><span class="s1">&#39;walks&#39;</span><span class="p">],</span> <span class="s1">&#39;Lemma&#39;</span><span class="p">:[</span><span class="s1">&#39;walk&#39;</span><span class="p">,</span><span class="s1">&#39;walk&#39;</span><span class="p">,</span><span class="s1">&#39;walk&#39;</span><span class="p">],</span> <span class="s1">&#39;Tense&#39;</span><span class="p">:[</span><span class="s1">&#39;PRES&#39;</span><span class="p">,</span><span class="s1">&#39;PAST&#39;</span><span class="p">,</span><span class="s1">&#39;PRES&#39;</span><span class="p">]})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">smat</span> <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_smat_sim</span><span class="p">(</span><span class="n">infl</span><span class="p">,</span> <span class="n">dim_size</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">smat</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="go">&lt;xarray.DataArray (word: 3, semantics: 5)&gt;</span>
+<span class="go">array([[ 0.75,  1.25,  0.39, -4.41, -0.12],</span>
+<span class="go">       [-1.68,  0.6 , -0.  , -3.55, -2.23],</span>
+<span class="go">       [-2.77,  0.71, -0.48, -2.76,  0.15]])</span>
+<span class="go">Coordinates:</span>
+<span class="go">  * word       (word) &lt;U6 &#39;walk&#39; &#39;walked&#39; &#39;walks&#39;</span>
+<span class="go">  * semantics  (semantics) &lt;U4 &#39;S000&#39; &#39;S001&#39; &#39;S002&#39; &#39;S003&#39; &#39;S004&#39;</span>
+</pre></div>
+</div>
+<p>Simulated semantic vectors were explained in <a class="footnote-reference brackets" href="#id15" id="id8">6</a> as the sum of the pertinent random normal vectors corresponding to the lemma and morphological features. For example, a semantic vector for “walks” is created by taking the sum of random normal vectors for “WALK” (lemma), third-person, and singular.</p>
+<p>This method is implemented with two matrices: <span class="math notranslate nohighlight">\(\mathbf{M}\)</span> and <span class="math notranslate nohighlight">\(\mathbf{J}\)</span>. The rows of <span class="math notranslate nohighlight">\(\mathbf{M}\)</span> are words and its columns are morphological features. Therefore, <span class="math notranslate nohighlight">\(\mathbf{M}\)</span> encodes which morphological features each word has. <span class="math notranslate nohighlight">\(\mathbf{J}\)</span> has morphological features as rows and semantic dimensions as columns. Therefore, rows of <span class="math notranslate nohighlight">\(\mathbf{J}\)</span> are randomly-generated semantic vectors for each morphological feature. Simulated semantic vectors are obtained for words by multiplying them:</p>
+<div class="math notranslate nohighlight">
+\[\mathbf{S}_{\text{sim}} = \mathbf{MJ}\]</div>
+<p><span class="math notranslate nohighlight">\(\mathbf{M}\)</span> and <span class="math notranslate nohighlight">\(\mathbf{J}\)</span> can be obtained in pyldl with pyldl.mapping.gen_mmat and pyldl.mapping.gen_jmat. They are used internally in pyldl.mapping.gen_smat_sim.</p>
+<p>Now that we have <span class="math notranslate nohighlight">\(\mathbf{C}\)</span> and <span class="math notranslate nohighlight">\(\mathbf{S}\)</span>, we can “learn” the associations between them. The associations, or weight matrices, between them are called <span class="math notranslate nohighlight">\(\mathbf{F}\)</span> and <span class="math notranslate nohighlight">\(\mathbf{G}\)</span>. These two weight matrices are mathematically obtained as below <a class="footnote-reference brackets" href="#id10" id="id9">1</a>:</p>
+<div class="math notranslate nohighlight">
+\[ \begin{align}\begin{aligned}\mathbf{CF} = \mathbf{S}\\\mathbf{C^{T}CF} = \mathbf{C^{T}S}\\\mathbf{(C^{T}C)^{-1}C^{T}CF} = \mathbf{(C^{T}C)^{-1}C^{T}S}\\\mathbf{IF} = \mathbf{(C^{T}C)^{-1}C^{T}S}\\\mathbf{F} = \mathbf{(C^{T}C)^{-1}C^{T}S}\end{aligned}\end{align} \]</div>
+<div class="math notranslate nohighlight">
+\[ \begin{align}\begin{aligned}\mathbf{SG} = \mathbf{C}\\\mathbf{S^{T}SG} = \mathbf{S^{T}C}\\\mathbf{(S^{T}S)^{-1}S^{T}SG} = \mathbf{(S^{T}S)^{-1}S^{T}C}\\\mathbf{IG} = \mathbf{(S^{T}S)^{-1}S^{T}C}\\\mathbf{G} = \mathbf{(S^{T}S)^{-1}S^{T}C}\end{aligned}\end{align} \]</div>
+<p>In pyldl, <span class="math notranslate nohighlight">\(\mathbf{F}\)</span> and <span class="math notranslate nohighlight">\(\mathbf{G}\)</span> can be obtained with pyldl.mapping.gen_fmat and pyldl.mapping.gen_gmat:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">fmat</span> <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_fmat</span><span class="p">(</span><span class="n">cmat</span><span class="p">,</span> <span class="n">smat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">fmat</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="go">&lt;xarray.DataArray (cues: 9, semantics: 5)&gt;</span>
+<span class="go">array([[-0.  , -0.  , -0.  , -0.  , -0.  ],</span>
+<span class="go">       [-0.  , -0.  , -0.  , -0.  , -0.  ],</span>
+<span class="go">       [-0.56,  0.2 , -0.  , -1.18, -0.74],</span>
+<span class="go">       [-0.56,  0.2 , -0.  , -1.18, -0.74],</span>
+<span class="go">       [-1.39,  0.35, -0.24, -1.38,  0.07],</span>
+<span class="go">       [ 0.75,  1.25,  0.39, -4.41, -0.12],</span>
+<span class="go">       [-0.56,  0.2 , -0.  , -1.18, -0.74],</span>
+<span class="go">       [-1.39,  0.35, -0.24, -1.38,  0.07],</span>
+<span class="go">       [-0.  , -0.  , -0.  , -0.  , -0.  ]])</span>
+<span class="go">Coordinates:</span>
+<span class="go">  * cues       (cues) &lt;U3 &#39;#wa&#39; &#39;alk&#39; &#39;ed#&#39; &#39;ked&#39; &#39;ks#&#39; &#39;lk#&#39; &#39;lke&#39; &#39;lks&#39; &#39;wal&#39;</span>
+<span class="go">  * semantics  (semantics) &lt;U4 &#39;S000&#39; &#39;S001&#39; &#39;S002&#39; &#39;S003&#39; &#39;S004&#39;</span>
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">gmat</span> <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_gmat</span><span class="p">(</span><span class="n">cmat</span><span class="p">,</span> <span class="n">smat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">gmat</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="go">&lt;xarray.DataArray (semantics: 5, cues: 9)&gt;</span>
+<span class="go">array([[-0.11, -0.11, -0.03, -0.03, -0.27,  0.19, -0.03, -0.27, -0.11],</span>
+<span class="go">       [ 0.06,  0.06, -0.06, -0.06,  0.05,  0.08, -0.06,  0.05,  0.06],</span>
+<span class="go">       [-0.01, -0.01,  0.03,  0.03, -0.08,  0.04,  0.03, -0.08, -0.01],</span>
+<span class="go">       [-0.23, -0.23, -0.01, -0.01, -0.05, -0.17, -0.01, -0.05, -0.23],</span>
+<span class="go">       [ 0.02,  0.02, -0.43, -0.43,  0.29,  0.15, -0.43,  0.29,  0.02]])</span>
+<span class="go">Coordinates:</span>
+<span class="go">  * semantics  (semantics) &lt;U4 &#39;S000&#39; &#39;S001&#39; &#39;S002&#39; &#39;S003&#39; &#39;S004&#39;</span>
+<span class="go">  * cues       (cues) &lt;U3 &#39;#wa&#39; &#39;alk&#39; &#39;ed#&#39; &#39;ked&#39; &#39;ks#&#39; &#39;lk#&#39; &#39;lke&#39; &#39;lks&#39; &#39;wal&#39;</span>
+</pre></div>
+</div>
+<p><span class="math notranslate nohighlight">\(\mathbf{F}\)</span> has cues as its rows and semantics as its columns. It can be used to predict words’ meanings based on the words’ forms. Namely:</p>
+<div class="math notranslate nohighlight">
+\[\mathbf{CF} = \mathbf{\hat{S}}\]</div>
+<p><span class="math notranslate nohighlight">\(\mathbf{\hat{S}}\)</span> is a predicted semantic matrix (or semantic vectors). Since this equation represents the process to infer meanings based on forms, it can be understood conceptually as the comprehension process of language.</p>
+<p>In pyldl, you can use pyldl.mapping.gen_shat for this purpose:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">shat</span> <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_shat</span><span class="p">(</span><span class="n">cmat</span><span class="o">=</span><span class="n">cmat</span><span class="p">,</span> <span class="n">fmat</span><span class="o">=</span><span class="n">fmat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">shat</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="go">&lt;xarray.DataArray (word: 3, semantics: 5)&gt;</span>
+<span class="go">array([[ 0.75,  1.25,  0.39, -4.41, -0.12],</span>
+<span class="go">       [-1.68,  0.6 , -0.  , -3.55, -2.23],</span>
+<span class="go">       [-2.77,  0.71, -0.48, -2.76,  0.15]])</span>
+<span class="go">Coordinates:</span>
+<span class="go">  * word       (word) &lt;U6 &#39;walk&#39; &#39;walked&#39; &#39;walks&#39;</span>
+<span class="go">  * semantics  (semantics) &lt;U4 &#39;S000&#39; &#39;S001&#39; &#39;S002&#39; &#39;S003&#39; &#39;S004&#39;</span>
+</pre></div>
+</div>
+<p>In fact, you do not have to produce <span class="math notranslate nohighlight">\(\mathbf{F}\)</span>, if you are only interested in producing <span class="math notranslate nohighlight">\(\mathbf{\hat{S}}\)</span>. You can directly estimate <span class="math notranslate nohighlight">\(\mathbf{\hat{S}}\)</span> from <span class="math notranslate nohighlight">\(\mathbf{C}\)</span> and <span class="math notranslate nohighlight">\(\mathbf{S}\)</span> with pyldl.mapping.gen_shat:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">shat</span> <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_shat</span><span class="p">(</span><span class="n">cmat</span><span class="o">=</span><span class="n">cmat</span><span class="p">,</span> <span class="n">smat</span><span class="o">=</span><span class="n">smat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">shat</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="go">&lt;xarray.DataArray (word: 3, semantics: 5)&gt;</span>
+<span class="go">array([[ 0.75,  1.25,  0.39, -4.41, -0.12],</span>
+<span class="go">       [-1.68,  0.6 , -0.  , -3.55, -2.23],</span>
+<span class="go">       [-2.77,  0.71, -0.48, -2.76,  0.15]])</span>
+<span class="go">Coordinates:</span>
+<span class="go">  * word       (word) &lt;U6 &#39;walk&#39; &#39;walked&#39; &#39;walks&#39;</span>
+<span class="go">  * semantics  (semantics) &lt;U4 &#39;S000&#39; &#39;S001&#39; &#39;S002&#39; &#39;S003&#39; &#39;S004&#39;</span>
+</pre></div>
+</div>
+<p>Similarly to <span class="math notranslate nohighlight">\(\mathbf{F}\)</span>, <span class="math notranslate nohighlight">\(\mathbf{G}\)</span> is also used to produce predicted form matrix/vectors (<span class="math notranslate nohighlight">\(\mathbf{\hat{C}}\)</span>) as below. The equation can be understood conceptually as the production process of language.</p>
+<div class="math notranslate nohighlight">
+\[\mathbf{SG} = \mathbf{\hat{C}}\]</div>
+<p>In pyldl, <span class="math notranslate nohighlight">\(\mathbf{\hat{C}}\)</span> is obtained by pyldl.mapping.gen_chat.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">chat</span> <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_chat</span><span class="p">(</span><span class="n">smat</span><span class="o">=</span><span class="n">smat</span><span class="p">,</span> <span class="n">gmat</span><span class="o">=</span><span class="n">gmat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">chat</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="go">&lt;xarray.DataArray (word: 3, cues: 9)&gt;</span>
+<span class="go">array([[ 1.,  1.,  0.,  0., -0.,  1.,  0., -0.,  1.],</span>
+<span class="go">       [ 1.,  1.,  1.,  1.,  0., -0.,  1.,  0.,  1.],</span>
+<span class="go">       [ 1.,  1., -0., -0.,  1., -0., -0.,  1.,  1.]])</span>
+<span class="go">Coordinates:</span>
+<span class="go">  * word       (word) &lt;U6 &#39;walk&#39; &#39;walked&#39; &#39;walks&#39;</span>
+<span class="go">  * cues       (cues) &lt;U3 &#39;#wa&#39; &#39;alk&#39; &#39;ed#&#39; &#39;ked&#39; &#39;ks#&#39; &#39;lk#&#39; &#39;lke&#39; &#39;lks&#39; &#39;wal&#39;</span>
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">chat</span> <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_chat</span><span class="p">(</span><span class="n">smat</span><span class="o">=</span><span class="n">smat</span><span class="p">,</span> <span class="n">cmat</span><span class="o">=</span><span class="n">cmat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">chat</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="go">&lt;xarray.DataArray (word: 3, cues: 9)&gt;</span>
+<span class="go">array([[ 1.,  1.,  0.,  0., -0.,  1.,  0., -0.,  1.],</span>
+<span class="go">       [ 1.,  1.,  1.,  1.,  0., -0.,  1.,  0.,  1.],</span>
+<span class="go">       [ 1.,  1., -0., -0.,  1., -0., -0.,  1.,  1.]])</span>
+<span class="go">Coordinates:</span>
+<span class="go">  * word       (word) &lt;U6 &#39;walk&#39; &#39;walked&#39; &#39;walks&#39;</span>
+<span class="go">  * cues       (cues) &lt;U3 &#39;#wa&#39; &#39;alk&#39; &#39;ed#&#39; &#39;ked&#39; &#39;ks#&#39; &#39;lk#&#39; &#39;lke&#39; &#39;lks&#39; &#39;wal&#39;</span>
+</pre></div>
+</div>
+<hr class="docutils" />
+<dl class="footnote brackets">
+<dt class="label" id="id10"><span class="brackets">1</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id5">2</a>,<a href="#id9">3</a>)</span></dt>
+<dd><p>Baayen, R. H., Chuang, Y.-Y., Shafaei-Bajestan, E., &amp; Blevins, J. P. (2019). The Discriminative Lexicon: A Unified Computational Model for the Lexicon and Lexical Processing in Comprehension and Production Grounded Not in (De)Composition but in Linear Discriminative Learning. <em>Complexity</em>, 1-39.</p>
+</dd>
+<dt class="label" id="id11"><span class="brackets"><a class="fn-backref" href="#id2">2</a></span></dt>
+<dd><p>Baayen, R. H., Milin, P., Durdevic, D. F., Hendrix, P., &amp; Marelli, M. (2011). An Amorphous Model for Morphological Processing in Visual Comprehension Based on Naive Discriminative Learning. <em>Psychological Review</em>, 118(3), 438-481.</p>
+</dd>
+<dt class="label" id="id12"><span class="brackets"><a class="fn-backref" href="#id3">3</a></span></dt>
+<dd><p>Rescorla, R. A., &amp; Wagner, A. R. (1972). A theory of Pavlovian conditioning: Variations in the effectiveness of reinforcement and nonreinforcement. In A. H. Black &amp; W. F. Prokasy (Eds.), <em>Classical conditioning II: Curent research and theory</em> (pp. 64-99). New York: Appleton-Century-Crofts.</p>
+</dd>
+<dt class="label" id="id13"><span class="brackets"><a class="fn-backref" href="#id4">4</a></span></dt>
+<dd><p>Danks, D. (2003). Equilibria of the Rescorla-Wagner model. <em>Journal of Mathematical Psychology</em>, 47(2), 109-121.</p>
+</dd>
+<dt class="label" id="id14"><span class="brackets"><a class="fn-backref" href="#id6">5</a></span></dt>
+<dd><p>Shafaei-Bajestan, E., Moradipour-Tari, M., Uhrig, P., &amp; Baayen, R. H. (2021). LDL-AURIS: a computational model, grounded in error-driven learning, for the comprehension of single spoken words. <em>Language, Cognition and Neuroscience</em>, 1-28.</p>
+</dd>
+<dt class="label" id="id15"><span class="brackets">6</span><span class="fn-backref">(<a href="#id7">1</a>,<a href="#id8">2</a>)</span></dt>
+<dd><p>Baayen, R. H., Chuang, Y.-Y., &amp; Blevins, J. P. (2018). Inflectional morphology with linear mappings. <em>The Mental Lexicon</em>, 13(2), 230-268.</p>
+</dd>
+</dl>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">pyldl</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Motoki Saito.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.2.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/mapping.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

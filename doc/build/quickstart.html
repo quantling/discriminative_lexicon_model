@@ -1,0 +1,347 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quickstart &#8212; pyldl  documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="quickstart">
+<h1>Quickstart<a class="headerlink" href="#quickstart" title="Permalink to this headline">¶</a></h1>
+<p>In the following, I will describe the basic usage of pyldl. For more details about Linear Discriminative Learning, see the section <a class="reference internal" href="mapping.html#linear-discriminative-learning"><span class="std std-ref">Linear Discriminative Learning</span></a>.</p>
+<div class="section" id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h2>
+<p><em>pyldl</em> is not available on PyPI yet. So, you need to clone it before installing it locally.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git clone https://github.com/msaito8623/pyldl
+pip install -e /path/to/the/repo
+</pre></div>
+</div>
+</div>
+<div class="section" id="train-an-linear-discriminative-learning-model">
+<h2>Train an Linear Discriminative Learning model<a class="headerlink" href="#train-an-linear-discriminative-learning-model" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="c-matrix">
+<h3>C-matrix<a class="headerlink" href="#c-matrix" title="Permalink to this headline">¶</a></h3>
+<p>You can create a C-matrix from a list of words by using pyldl.mapping.gen_cmat.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">pyldl.mapping</span> <span class="k">as</span> <span class="nn">pmap</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">words</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;walk&#39;</span><span class="p">,</span><span class="s1">&#39;walked&#39;</span><span class="p">,</span><span class="s1">&#39;walks&#39;</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cmat</span>  <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_cmat</span><span class="p">(</span><span class="n">words</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cmat</span>
+<span class="go">&lt;xarray.DataArray (word: 3, cues: 9)&gt;</span>
+<span class="go">array([[ True,  True, False, False, False,  True, False, False,  True],</span>
+<span class="go">       [ True,  True,  True,  True, False, False,  True, False,  True],</span>
+<span class="go">       [ True,  True, False, False,  True, False, False,  True,  True]])</span>
+<span class="go">Coordinates:</span>
+<span class="go">  * word     (word) &lt;U6 &#39;walk&#39; &#39;walked&#39; &#39;walks&#39;</span>
+<span class="go">  * cues     (cues) &lt;U3 &#39;#wa&#39; &#39;alk&#39; &#39;ed#&#39; &#39;ked&#39; &#39;ks#&#39; &#39;lk#&#39; &#39;lke&#39; &#39;lks&#39; &#39;wal&#39;</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="s-matrix">
+<h3>S-matrix<a class="headerlink" href="#s-matrix" title="Permalink to this headline">¶</a></h3>
+<p>An S-matrix by simulated semantic vectors <a class="footnote-reference brackets" href="#id2" id="id1">1</a> can be produced from a pandas dataframe that contains morphological information. This can be achieved in pyldl with pyldl.mapping.gen_smat_sim.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">infl</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s1">&#39;Word&#39;</span><span class="p">:[</span><span class="s1">&#39;walk&#39;</span><span class="p">,</span><span class="s1">&#39;walked&#39;</span><span class="p">,</span><span class="s1">&#39;walks&#39;</span><span class="p">],</span> <span class="s1">&#39;Lemma&#39;</span><span class="p">:[</span><span class="s1">&#39;walk&#39;</span><span class="p">,</span><span class="s1">&#39;walk&#39;</span><span class="p">,</span><span class="s1">&#39;walk&#39;</span><span class="p">],</span> <span class="s1">&#39;Tense&#39;</span><span class="p">:[</span><span class="s1">&#39;PRES&#39;</span><span class="p">,</span><span class="s1">&#39;PAST&#39;</span><span class="p">,</span><span class="s1">&#39;PRES&#39;</span><span class="p">]})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">smat</span> <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_smat_sim</span><span class="p">(</span><span class="n">infl</span><span class="p">,</span> <span class="n">dim_size</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">smat</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="go">&lt;xarray.DataArray (word: 3, semantics: 5)&gt;</span>
+<span class="go">array([[ 0.75,  1.25,  0.39, -4.41, -0.12],</span>
+<span class="go">       [-1.68,  0.6 , -0.  , -3.55, -2.23],</span>
+<span class="go">       [-2.77,  0.71, -0.48, -2.76,  0.15]])</span>
+<span class="go">Coordinates:</span>
+<span class="go">  * word       (word) &lt;U6 &#39;walk&#39; &#39;walked&#39; &#39;walks&#39;</span>
+<span class="go">  * semantics  (semantics) &lt;U4 &#39;S000&#39; &#39;S001&#39; &#39;S002&#39; &#39;S003&#39; &#39;S004&#39;</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="f-matrix">
+<h3>F-matrix<a class="headerlink" href="#f-matrix" title="Permalink to this headline">¶</a></h3>
+<p>An F-matrix can be obtained with pyldl.mapping.gen_fmat.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">fmat</span> <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_fmat</span><span class="p">(</span><span class="n">cmat</span><span class="p">,</span> <span class="n">smat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">fmat</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="go">&lt;xarray.DataArray (cues: 9, semantics: 5)&gt;</span>
+<span class="go">array([[-0.  , -0.  , -0.  , -0.  , -0.  ],</span>
+<span class="go">       [-0.  , -0.  , -0.  , -0.  , -0.  ],</span>
+<span class="go">       [-0.56,  0.2 , -0.  , -1.18, -0.74],</span>
+<span class="go">       [-0.56,  0.2 , -0.  , -1.18, -0.74],</span>
+<span class="go">       [-1.39,  0.35, -0.24, -1.38,  0.07],</span>
+<span class="go">       [ 0.75,  1.25,  0.39, -4.41, -0.12],</span>
+<span class="go">       [-0.56,  0.2 , -0.  , -1.18, -0.74],</span>
+<span class="go">       [-1.39,  0.35, -0.24, -1.38,  0.07],</span>
+<span class="go">       [-0.  , -0.  , -0.  , -0.  , -0.  ]])</span>
+<span class="go">Coordinates:</span>
+<span class="go">  * cues       (cues) &lt;U3 &#39;#wa&#39; &#39;alk&#39; &#39;ed#&#39; &#39;ked&#39; &#39;ks#&#39; &#39;lk#&#39; &#39;lke&#39; &#39;lks&#39; &#39;wal&#39;</span>
+<span class="go">  * semantics  (semantics) &lt;U4 &#39;S000&#39; &#39;S001&#39; &#39;S002&#39; &#39;S003&#39; &#39;S004&#39;</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="g-matrix">
+<h3>G-matrix<a class="headerlink" href="#g-matrix" title="Permalink to this headline">¶</a></h3>
+<p>A G-matrix can be obtained with pyldl.mapping.gen_gmat.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">gmat</span> <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_gmat</span><span class="p">(</span><span class="n">cmat</span><span class="p">,</span> <span class="n">smat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">gmat</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="go">&lt;xarray.DataArray (semantics: 5, cues: 9)&gt;</span>
+<span class="go">array([[-0.11, -0.11, -0.03, -0.03, -0.27,  0.19, -0.03, -0.27, -0.11],</span>
+<span class="go">       [ 0.06,  0.06, -0.06, -0.06,  0.05,  0.08, -0.06,  0.05,  0.06],</span>
+<span class="go">       [-0.01, -0.01,  0.03,  0.03, -0.08,  0.04,  0.03, -0.08, -0.01],</span>
+<span class="go">       [-0.23, -0.23, -0.01, -0.01, -0.05, -0.17, -0.01, -0.05, -0.23],</span>
+<span class="go">       [ 0.02,  0.02, -0.43, -0.43,  0.29,  0.15, -0.43,  0.29,  0.02]])</span>
+<span class="go">Coordinates:</span>
+<span class="go">  * semantics  (semantics) &lt;U4 &#39;S000&#39; &#39;S001&#39; &#39;S002&#39; &#39;S003&#39; &#39;S004&#39;</span>
+<span class="go">  * cues       (cues) &lt;U3 &#39;#wa&#39; &#39;alk&#39; &#39;ed#&#39; &#39;ked&#39; &#39;ks#&#39; &#39;lk#&#39; &#39;lke&#39; &#39;lks&#39; &#39;wal&#39;</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="s-hat-matrix">
+<h3>S-hat-matrix<a class="headerlink" href="#s-hat-matrix" title="Permalink to this headline">¶</a></h3>
+<p>An S-hat-matrix (<span class="math notranslate nohighlight">\(\mathbf{\hat{S}}\)</span>), predicted semantic vectors based on forms, can be obtained with pyldl.mapping.gen_shat. You can produce an S-hat-matrix from a C-matrix and an F-matrix or from a C-matrix and an S-matrix without producing an F-matrix yourself.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">shat</span> <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_shat</span><span class="p">(</span><span class="n">cmat</span><span class="o">=</span><span class="n">cmat</span><span class="p">,</span> <span class="n">fmat</span><span class="o">=</span><span class="n">fmat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">shat</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="go">&lt;xarray.DataArray (word: 3, semantics: 5)&gt;</span>
+<span class="go">array([[ 0.75,  1.25,  0.39, -4.41, -0.12],</span>
+<span class="go">       [-1.68,  0.6 , -0.  , -3.55, -2.23],</span>
+<span class="go">       [-2.77,  0.71, -0.48, -2.76,  0.15]])</span>
+<span class="go">Coordinates:</span>
+<span class="go">  * word       (word) &lt;U6 &#39;walk&#39; &#39;walked&#39; &#39;walks&#39;</span>
+<span class="go">  * semantics  (semantics) &lt;U4 &#39;S000&#39; &#39;S001&#39; &#39;S002&#39; &#39;S003&#39; &#39;S004&#39;</span>
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">shat</span> <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_shat</span><span class="p">(</span><span class="n">cmat</span><span class="o">=</span><span class="n">cmat</span><span class="p">,</span> <span class="n">smat</span><span class="o">=</span><span class="n">smat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">shat</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="go">&lt;xarray.DataArray (word: 3, semantics: 5)&gt;</span>
+<span class="go">array([[ 0.75,  1.25,  0.39, -4.41, -0.12],</span>
+<span class="go">       [-1.68,  0.6 , -0.  , -3.55, -2.23],</span>
+<span class="go">       [-2.77,  0.71, -0.48, -2.76,  0.15]])</span>
+<span class="go">Coordinates:</span>
+<span class="go">  * word       (word) &lt;U6 &#39;walk&#39; &#39;walked&#39; &#39;walks&#39;</span>
+<span class="go">  * semantics  (semantics) &lt;U4 &#39;S000&#39; &#39;S001&#39; &#39;S002&#39; &#39;S003&#39; &#39;S004&#39;</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="c-hat-matrix">
+<h3>C-hat-matrix<a class="headerlink" href="#c-hat-matrix" title="Permalink to this headline">¶</a></h3>
+<p>A C-hat-matrix (<span class="math notranslate nohighlight">\(\mathbf{\hat{C}}\)</span>), predicted form vectors based on semantics, can be obtained with pyldl.mapping.gen_chat. You can produce a C-hat-matrix from an S-matrix and a G-matrix or from an S-matrix and a C-matrix without producing a G-matrix yourself.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">chat</span> <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_chat</span><span class="p">(</span><span class="n">smat</span><span class="o">=</span><span class="n">smat</span><span class="p">,</span> <span class="n">gmat</span><span class="o">=</span><span class="n">gmat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">chat</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="go">&lt;xarray.DataArray (word: 3, cues: 9)&gt;</span>
+<span class="go">array([[ 1.,  1.,  0.,  0., -0.,  1.,  0., -0.,  1.],</span>
+<span class="go">       [ 1.,  1.,  1.,  1.,  0., -0.,  1.,  0.,  1.],</span>
+<span class="go">       [ 1.,  1., -0., -0.,  1., -0., -0.,  1.,  1.]])</span>
+<span class="go">Coordinates:</span>
+<span class="go">  * word       (word) &lt;U6 &#39;walk&#39; &#39;walked&#39; &#39;walks&#39;</span>
+<span class="go">  * cues       (cues) &lt;U3 &#39;#wa&#39; &#39;alk&#39; &#39;ed#&#39; &#39;ked&#39; &#39;ks#&#39; &#39;lk#&#39; &#39;lke&#39; &#39;lks&#39; &#39;wal&#39;</span>
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">chat</span> <span class="o">=</span> <span class="n">pmap</span><span class="o">.</span><span class="n">gen_chat</span><span class="p">(</span><span class="n">smat</span><span class="o">=</span><span class="n">smat</span><span class="p">,</span> <span class="n">cmat</span><span class="o">=</span><span class="n">cmat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">chat</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="go">&lt;xarray.DataArray (word: 3, cues: 9)&gt;</span>
+<span class="go">array([[ 1.,  1.,  0.,  0., -0.,  1.,  0., -0.,  1.],</span>
+<span class="go">       [ 1.,  1.,  1.,  1.,  0., -0.,  1.,  0.,  1.],</span>
+<span class="go">       [ 1.,  1., -0., -0.,  1., -0., -0.,  1.,  1.]])</span>
+<span class="go">Coordinates:</span>
+<span class="go">  * word       (word) &lt;U6 &#39;walk&#39; &#39;walked&#39; &#39;walks&#39;</span>
+<span class="go">  * cues       (cues) &lt;U3 &#39;#wa&#39; &#39;alk&#39; &#39;ed#&#39; &#39;ked&#39; &#39;ks#&#39; &#39;lk#&#39; &#39;lke&#39; &#39;lks&#39; &#39;wal&#39;</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="check-the-model-s-performance">
+<h2>Check the model’s performance<a class="headerlink" href="#check-the-model-s-performance" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="prediction-accuracy">
+<h3>Prediction accuracy<a class="headerlink" href="#prediction-accuracy" title="Permalink to this headline">¶</a></h3>
+<p>pyldl.performance.accuracy returns how many words are correcly predicted.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">pyldl.performance</span> <span class="k">as</span> <span class="nn">lp</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lp</span><span class="o">.</span><span class="n">accuracy</span><span class="p">(</span><span class="n">chat</span><span class="p">,</span> <span class="n">cmat</span><span class="p">)</span>
+<span class="go">1.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lp</span><span class="o">.</span><span class="n">accuracy</span><span class="p">(</span><span class="n">shat</span><span class="p">,</span> <span class="n">smat</span><span class="p">)</span>
+<span class="go">1.0</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="prediction-dataframes">
+<h3>Prediction dataframes<a class="headerlink" href="#prediction-dataframes" title="Permalink to this headline">¶</a></h3>
+<p>You can see which word is predicted correctly in more details with pyldl.performance.predict_df.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">lp</span><span class="o">.</span><span class="n">predict_df</span><span class="p">(</span><span class="n">chat</span><span class="p">,</span> <span class="n">cmat</span><span class="p">)</span>
+<span class="go">  WordDISC    pred   acc</span>
+<span class="go">0     walk    walk  True</span>
+<span class="go">1   walked  walked  True</span>
+<span class="go">2    walks   walks  True</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lp</span><span class="o">.</span><span class="n">predict_df</span><span class="p">(</span><span class="n">shat</span><span class="p">,</span> <span class="n">smat</span><span class="p">)</span>
+<span class="go">  WordDISC    pred   acc</span>
+<span class="go">0     walk    walk  True</span>
+<span class="go">1   walked  walked  True</span>
+<span class="go">2    walks   walks  True</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="obtain-predictions-for-a-particular-word">
+<h3>Obtain predictions for a particular word<a class="headerlink" href="#obtain-predictions-for-a-particular-word" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">lp</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="s1">&#39;walked&#39;</span><span class="p">,</span> <span class="n">chat</span><span class="p">,</span> <span class="n">cmat</span><span class="p">)</span>
+<span class="go">0    walked</span>
+<span class="go">1      walk</span>
+<span class="go">2     walks</span>
+<span class="go">dtype: object</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lp</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="s1">&#39;walked&#39;</span><span class="p">,</span> <span class="n">shat</span><span class="p">,</span> <span class="n">smat</span><span class="p">)</span>
+<span class="go">0    walked</span>
+<span class="go">1     walks</span>
+<span class="go">2      walk</span>
+<span class="go">dtype: object</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="deriving-semantic-measures">
+<h2>Deriving semantic measures<a class="headerlink" href="#deriving-semantic-measures" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="semantic-support">
+<h3>Semantic support<a class="headerlink" href="#semantic-support" title="Permalink to this headline">¶</a></h3>
+<p>Semantic support represents how much a particular form (e.g. triphone) is supported by semantics.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">pyldl.measures</span> <span class="k">as</span> <span class="nn">lmea</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sem_ed</span> <span class="o">=</span> <span class="n">lmea</span><span class="o">.</span><span class="n">semantic_support</span><span class="p">(</span><span class="s1">&#39;walked&#39;</span><span class="p">,</span> <span class="s1">&#39;ed#&#39;</span><span class="p">,</span> <span class="n">chat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">round</span><span class="p">(</span><span class="n">sem_ed</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+<span class="go">1.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sem_ks</span> <span class="o">=</span> <span class="n">lmea</span><span class="o">.</span><span class="n">semantic_support</span><span class="p">(</span><span class="s1">&#39;walked&#39;</span><span class="p">,</span> <span class="s1">&#39;ks#&#39;</span><span class="p">,</span> <span class="n">chat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">round</span><span class="p">(</span><span class="n">sem_ks</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+<span class="go">0.0</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="production-accuracy">
+<h3>Production accuracy<a class="headerlink" href="#production-accuracy" title="Permalink to this headline">¶</a></h3>
+<p>Production accuracy is similar to semantic support, but looks into how closely the model makes a prediction to the target form vector.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">p_acc</span> <span class="o">=</span> <span class="n">lmea</span><span class="o">.</span><span class="n">prod_acc</span><span class="p">(</span><span class="s1">&#39;walked&#39;</span><span class="p">,</span> <span class="n">cmat</span><span class="p">,</span> <span class="n">chat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">p_acc</span>
+<span class="go">1.0</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="functional-load">
+<h3>Functional load<a class="headerlink" href="#functional-load" title="Permalink to this headline">¶</a></h3>
+<p>Functional load represents how much a certain form (e.g. triphone) helps to identify the target word’s semantics. In the following example, “-ed” is unique to “walked” in this toy example. Therefore, “-ed” is very helpful to discriminate “walked” from the other two, hence a high functional load value. On the other hand, “wa-” is shared by all the three words. Therefore, “wa-” does not help so much to dintinguish the three words, hence a low functional load value.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">fl_ed</span> <span class="o">=</span> <span class="n">lmea</span><span class="o">.</span><span class="n">functional_load</span><span class="p">(</span><span class="s1">&#39;ed#&#39;</span><span class="p">,</span> <span class="n">fmat</span><span class="p">,</span> <span class="s1">&#39;walked&#39;</span><span class="p">,</span> <span class="n">smat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">fl_wa</span> <span class="o">=</span> <span class="n">lmea</span><span class="o">.</span><span class="n">functional_load</span><span class="p">(</span><span class="s1">&#39;wa#&#39;</span><span class="p">,</span> <span class="n">fmat</span><span class="p">,</span> <span class="s1">&#39;walked&#39;</span><span class="p">,</span> <span class="n">smat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">round</span><span class="p">(</span><span class="n">fl_ed</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+<span class="go">1.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">round</span><span class="p">(</span><span class="n">fl_wa</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+<span class="go">0.113</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="uncertainty-in-production-and-comprehension">
+<h3>Uncertainty in production and comprehension<a class="headerlink" href="#uncertainty-in-production-and-comprehension" title="Permalink to this headline">¶</a></h3>
+<p>pyldl.measures.uncertainty returns how much uncertainty is among the model’s predictions.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">unc_prod</span> <span class="o">=</span> <span class="n">lmea</span><span class="o">.</span><span class="n">uncertainty</span><span class="p">(</span><span class="s1">&#39;walked&#39;</span><span class="p">,</span> <span class="n">chat</span><span class="p">,</span> <span class="n">cmat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">unc_comp</span> <span class="o">=</span> <span class="n">lmea</span><span class="o">.</span><span class="n">uncertainty</span><span class="p">(</span><span class="s1">&#39;walked&#39;</span><span class="p">,</span> <span class="n">shat</span><span class="p">,</span> <span class="n">smat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">round</span><span class="p">(</span><span class="n">unc_prod</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+<span class="go">2.143</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">round</span><span class="p">(</span><span class="n">unc_comp</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+<span class="go">2.259</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="semantic-vector-length">
+<h3>Semantic vector length<a class="headerlink" href="#semantic-vector-length" title="Permalink to this headline">¶</a></h3>
+<p>The length of a semantic vector can be obtained by pyldl.measures.vector_length.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">vlen</span> <span class="o">=</span> <span class="n">lmea</span><span class="o">.</span><span class="n">vector_length</span><span class="p">(</span><span class="s1">&#39;walked&#39;</span><span class="p">,</span> <span class="n">smat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">round</span><span class="p">(</span><span class="n">vlen</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+<span class="go">8.062</span>
+</pre></div>
+</div>
+<hr class="docutils" />
+<dl class="footnote brackets">
+<dt class="label" id="id2"><span class="brackets"><a class="fn-backref" href="#id1">1</a></span></dt>
+<dd><p>Baayen, R. H., Chuang, Y.-Y., &amp; Blevins, J. P. (2018). Inflectional morphology with linear mappings. <em>The Mental Lexicon</em>, 13(2), 230-268.</p>
+</dd>
+</dl>
+</div>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">pyldl</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Motoki Saito.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.2.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/quickstart.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
