@@ -2,7 +2,7 @@
 pyldl - Linear Discriminative Learning in Python
 =============================================================
 
-*pyldl* provides several functions to perform mappings and accuracy calculations in the framework of LDL (Baayen et al., 2019).
+*pyldl* provides several functions to perform mappings and accuracy calculations in the framework of Linear Discriminative Learning (Baayen et al., 2019).
 
 
 Installation
