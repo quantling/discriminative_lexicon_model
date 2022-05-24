@@ -3,4 +3,3 @@ pyldl.egg-info/
 *.swp
 build/
 dist/
-!doc/build/
