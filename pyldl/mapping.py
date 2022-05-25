@@ -33,9 +33,9 @@ def gen_cmat (words, cores=1):
     cmat = cmat.loc[sorted(list(set(cmat.word.values))),:]
     return cmat
 
-def gen_smat_sim (infl, form=None, sep=None, dim_size=5):
+def gen_smat_sim (infl, form=None, sep=None, dim_size=5, seed=None):
     mmat = gen_mmat(infl, form, sep)
-    jmat = gen_jmat(mmat, dim_size)
+    jmat = gen_jmat(mmat, dim_size, seed)
     words = list(mmat.word.values)
     semantics = list(jmat.semantics.values)
     if not all([ isinstance(i, np.ndarray) for i in [mmat, jmat] ]):
@@ -82,9 +82,17 @@ def gen_mmat (infl, form=None, sep=None, cores=1):
     aaa = xr.DataArray(aaa, dims=('word','feature'), coords=coor)
     return aaa
 
-def gen_jmat (mmat, dim_size):
+def gen_jmat (mmat, dim_size, seed=None):
+    def rand_norm_seed (dim_size, seed=None):
+        if not (seed is None):
+            np.random.seed(seed)
+        vec = np.random.normal(loc=0, scale=1, size=dim_size)
+        return vec
     features = list(mmat.feature.values)
-    aaa = [ np.random.normal(loc=0, scale=1, size=dim_size) for i in features ]
+    if seed is None:
+        aaa = [ rand_norm_seed(dim_size, seed=seed) for j in features ]
+    else:
+        aaa = [ rand_norm_seed(dim_size, seed=seed+i) for i,j in enumerate(features) ]
     coor = {'feature': features, 'semantics':[ 'S{:03d}'.format(i) for i in range(dim_size) ]}
     aaa = xr.DataArray(np.stack(aaa), dims=('feature', 'semantics'), coords=coor)
     return aaa
