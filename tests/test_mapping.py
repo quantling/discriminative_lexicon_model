@@ -38,16 +38,28 @@ def test_gen_cmat ():
 frms = [None, 'word', 'lemma']
 seps = [None, '/']
 dims = [3, 5]
+mns  = [0, 100]
+sds  = [1, 100]
+incl = [True, False]
 seds = [10]
-pars_gen_smat_sim = [ (i,j,k,l) for i in frms for j in seps for k in dims for l in seds ]
-pars_gen_smat_sim = [ (i,j[0],j[1],j[2],j[3]) for i,j in enumerate(pars_gen_smat_sim) ]
-pars_gen_smat_sim = pars_gen_smat_sim + [(12, 'word', '/', 5, None)]
-@pytest.mark.parametrize('ind, form, sep, dim_size, seed', pars_gen_smat_sim)
-def test_gen_smat_sim (ind, form, sep, dim_size, seed):
-    _smat = '{}/smat_sim_{:02d}.nc'.format(RESOURCES, ind)
-    _smat = xr.open_dataarray(_smat)
-    smat = pm.gen_smat_sim(infl, form, sep, dim_size, seed)
-    assert smat.identical(_smat) if ind!=12 else not smat.identical(_smat)
+pars_gen_smat_sim = [ (i,j,k,l,m,n,o) for i in frms for j in seps for k in dims for l in mns for m in sds for n in incl for o in seds ]
+pars_gen_smat_sim = pars_gen_smat_sim + [('word', '/', 5, 0, 1, True, None)]
+pars_gen_smat_sim = [ (i,j[0],j[1],j[2],j[3],j[4],j[5],j[6]) for i,j in enumerate(pars_gen_smat_sim) ]
+@pytest.mark.parametrize('ind, form, sep, dim_size, mn, sd, incl, seed', pars_gen_smat_sim)
+def test_gen_smat_sim (ind, form, sep, dim_size, mn, sd, incl, seed):
+    if (form is None) and (not incl):
+        with pytest.raises(ValueError) as e_info:
+            smat = pm.gen_smat_sim(infl, form, sep, dim_size, mn, sd, incl, seed)
+            assert e_info == 'Specify which column to drop by the argument "form" when "include_form" is False.'
+    else:
+        _smat = '{}/smat_sim_{:02d}.nc'.format(RESOURCES, ind)
+        _smat = xr.open_dataarray(_smat)
+        smat = pm.gen_smat_sim(infl, form, sep, dim_size, mn, sd, incl, seed)
+        if seed is None:
+            assert not smat.identical(_smat)
+        else:
+            assert smat.identical(_smat)
+
 
 def test_gen_fmat():
     cmat = pm.gen_cmat(infl.word, cores=1)

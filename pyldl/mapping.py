@@ -32,9 +32,9 @@ def gen_cmat (words, cores=1):
     cmat = xr.DataArray(cmat, dims=('word','cues'), coords=coor)
     return cmat
 
-def gen_smat_sim (infl, form=None, sep=None, dim_size=5, seed=None):
-    mmat = gen_mmat(infl, form, sep)
-    jmat = gen_jmat(mmat, dim_size, seed)
+def gen_smat_sim (infl, form=None, sep=None, dim_size=5, mn=0, sd=1, include_form=True, seed=None):
+    mmat = gen_mmat(infl, form, sep, include_form)
+    jmat = gen_jmat(mmat, dim_size, mn, sd, seed)
     words = list(mmat.word.values)
     semantics = list(jmat.semantics.values)
     if not all([ isinstance(i, np.ndarray) for i in [mmat, jmat] ]):
@@ -45,7 +45,7 @@ def gen_smat_sim (infl, form=None, sep=None, dim_size=5, seed=None):
     shat = xr.DataArray(np.stack(shat), dims=('word', 'semantics'), coords=coor)
     return shat
 
-def gen_mmat (infl, form=None, sep=None, cores=1):
+def gen_mmat (infl, form=None, sep=None, include_form=True, cores=1):
     def one_hot (clm, sep=None, cores=1):
         clm = to_nlist(clm, sep)
         unq = pd.Series(sorted(list(set([ j for i in clm for j in i ]))))
@@ -70,22 +70,30 @@ def gen_mmat (infl, form=None, sep=None, cores=1):
         clm = to_nlist(clm, sep)
         unq = sorted(list(set([ j for i in clm for j in i ])))
         return unq
+
+    if (form is None) and (include_form):
+        words = infl.iloc[:,0]
+    elif (form is None) and (not include_form):
+        raise ValueError('Specify which column to drop by the argument "form" when "include_form" is False.')
+    elif (not (form is None)) and (include_form):
+        words = infl[form]
+    elif (not (form is None)) and (not include_form):
+        words = infl[form]
+        infl = infl.drop(columns=[form])
     
     aaa = [ one_hot(infl[i], sep=sep, cores=cores) for i in infl.columns ]
     aaa = np.concatenate(aaa, axis=1)
     bbb = [ [ '{}:{}'.format(i,j) for j in to_unique(infl[i],sep) ] for i in infl.columns ]
     bbb = [ j for i in bbb for j in i ]
-    if form is None:
-        form = infl.columns[0]
-    coor = {'word':infl[form], 'feature':bbb}
+    coor = {'word':words, 'feature':bbb}
     aaa = xr.DataArray(aaa, dims=('word','feature'), coords=coor)
     return aaa
 
-def gen_jmat (mmat, dim_size, seed=None):
+def gen_jmat (mmat, dim_size, mn=0, sd=1, seed=None):
     def rand_norm_seed (dim_size, seed=None):
         if not (seed is None):
             np.random.seed(seed)
-        vec = np.random.normal(loc=0, scale=1, size=dim_size)
+        vec = np.random.normal(loc=mn, scale=sd, size=dim_size)
         return vec
     features = list(mmat.feature.values)
     if seed is None:
