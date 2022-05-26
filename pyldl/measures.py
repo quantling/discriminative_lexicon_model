@@ -37,25 +37,18 @@ def prod_acc (word, cmat, chat, method='corr'):
         raise ValueError('method must be corr or mse.')
     return chacc
 
-def uncertainty (word, hat, mat, method='cosine', distance=False):
-    if distance:
-        distance = False
-        print('WARNING: The current version of this function allows only distance=False. Therefore, distance was reset to False.')
+def uncertainty (word, hat, mat):
     def normalize (x):
         x = np.array(x)
         return (x - x.min()) / (x.max()-x.min())
-    coss = spd.cdist(np.tile(hat.loc[word,:], (1,1)), np.array(mat), method)
-    if distance:
-        pass
-    else:
-        coss = 1 - coss
+    coss = spd.cdist(np.tile(hat.loc[word,:], (1,1)), np.array(mat), 'cosine')
+    coss = 1 - coss
     coss = normalize(coss[0,:])
     coss.sort()
     coss = sum([ i*j for i,j in enumerate(coss) ])
     return coss
 
-def vector_length (word, smat, method='l1norm'):
-    # Only l1norm is available now.
+def vector_length (word, smat):
     return np.absolute(smat.loc[word,:].values).sum()
 
 

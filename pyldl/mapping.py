@@ -30,7 +30,6 @@ def gen_cmat (words, cores=1):
     cmat = np.array(cmat).reshape(len(words), len(cues))
     coor = {'word':list(words), 'cues':cues}
     cmat = xr.DataArray(cmat, dims=('word','cues'), coords=coor)
-    cmat = cmat.loc[sorted(list(set(cmat.word.values))),:]
     return cmat
 
 def gen_smat_sim (infl, form=None, sep=None, dim_size=5, seed=None):

@@ -2,13 +2,13 @@ import pandas as pd
 import numpy as np
 import scipy.spatial.distance as spd
 
-def accuracy (hat, mat, method='cosine', distance=False):
-    pred = predict_df(hat, mat, max_guess=1, method=method, distance=distance)
+def accuracy (hat, mat, distance=False):
+    pred = predict_df(hat, mat, max_guess=1, distance=distance)
     acc = pred.acc.sum() / len(pred)
     return acc
 
-def predict_df (hat, mat, max_guess=1, method='cosine', distance=False):
-    coss = spd.cdist(np.array(hat), np.array(mat), method)
+def predict_df (hat, mat, max_guess=1, distance=False):
+    coss = spd.cdist(np.array(hat), np.array(mat), 'cosine')
     if distance:
         pos1 = [np.argmin(coss, axis=1)]
         sign = 1
@@ -36,9 +36,9 @@ def predict_df (hat, mat, max_guess=1, method='cosine', distance=False):
     dddd = pd.concat([wrds,prds,hits], axis=1)
     return dddd
 
-def predict (word, hat, mat, method='cosine', distance=False):
+def predict (word, hat, mat, distance=False):
     hat = np.tile(hat.loc[word,:], (1,1))
-    coss = spd.cdist(np.array(hat), np.array(mat), method)
+    coss = spd.cdist(np.array(hat), np.array(mat), 'cosine')
     if distance:
         sign = 1
     else:
