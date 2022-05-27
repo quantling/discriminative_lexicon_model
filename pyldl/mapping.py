@@ -18,9 +18,10 @@ def _cue_exist (x):
     i,j = x
     return j in '#'+i+'#'
 
-def gen_cmat (words, cores=1):
-    cues = [ to_ngram(i, gram=3) for i in words ]
-    cues = sorted(list(set([ j for i in cues for j in i ])))
+def gen_cmat (words, gram=3, cores=1, differentiate_duplicates=False):
+    cues = [ to_ngram(i, gram) for i in words ]
+    cues = list(dict.fromkeys([ j for i in cues for j in i ]))
+    # cues = sorted(list(set([ j for i in cues for j in i ])))
     if cores==1:
         cmat = [ j in '#'+i+'#' for i in words for j in cues ]
     else:
@@ -28,12 +29,28 @@ def gen_cmat (words, cores=1):
         with Pool(cores) as p:
             cmat = p.map(_cue_exist, cmat)
     cmat = np.array(cmat).reshape(len(words), len(cues))
+    if differentiate_duplicates:
+        words = _differentiate_duplicates(words)
     coor = {'word':list(words), 'cues':cues}
     cmat = xr.DataArray(cmat, dims=('word','cues'), coords=coor)
-    return cmat
+    return cmat.astype(int)
 
-def gen_smat_sim (infl, form=None, sep=None, dim_size=5, mn=0, sd=1, include_form=True, seed=None):
-    mmat = gen_mmat(infl, form, sep, include_form)
+def _differentiate_duplicates (words):
+    def _assign_id (x):
+        x = x.reset_index(drop=True)
+        if len(x)>1:
+            x['word'] = x['word'] + x.index.astype(str)
+        else:
+            x['word'] = x['word']
+        return x
+    words = pd.DataFrame({'word':words})
+    words['id'] = range(len(words))
+    words = words.groupby('word').apply(_assign_id).reset_index(drop=True)
+    words = words.sort_values('id')
+    return words['word'].tolist()
+
+def gen_smat_sim (infl, form=None, sep=None, dim_size=5, mn=0, sd=1, include_form=True, differentiate_duplicates=False, seed=None):
+    mmat = gen_mmat(infl, form, sep, include_form, differentiate_duplicates)
     jmat = gen_jmat(mmat, dim_size, mn, sd, seed)
     words = list(mmat.word.values)
     semantics = list(jmat.semantics.values)
@@ -45,7 +62,7 @@ def gen_smat_sim (infl, form=None, sep=None, dim_size=5, mn=0, sd=1, include_for
     shat = xr.DataArray(np.stack(shat), dims=('word', 'semantics'), coords=coor)
     return shat
 
-def gen_mmat (infl, form=None, sep=None, include_form=True, cores=1):
+def gen_mmat (infl, form=None, sep=None, include_form=True, differentiate_duplicates=False, cores=1):
     def one_hot (clm, sep=None, cores=1):
         clm = to_nlist(clm, sep)
         unq = pd.Series(sorted(list(set([ j for i in clm for j in i ]))))
@@ -85,6 +102,8 @@ def gen_mmat (infl, form=None, sep=None, include_form=True, cores=1):
     aaa = np.concatenate(aaa, axis=1)
     bbb = [ [ '{}:{}'.format(i,j) for j in to_unique(infl[i],sep) ] for i in infl.columns ]
     bbb = [ j for i in bbb for j in i ]
+    if differentiate_duplicates:
+        words = _differentiate_duplicates(words)
     coor = {'word':words, 'feature':bbb}
     aaa = xr.DataArray(aaa, dims=('word','feature'), coords=coor)
     return aaa

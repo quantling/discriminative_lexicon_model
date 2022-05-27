@@ -32,7 +32,7 @@ def predict_df (hat, mat, max_guess=1, distance=False):
         hits = [ pd.DataFrame({'acc{:d}'.format(i+1):j}) for i,j in enumerate(hits) ]
     prds = pd.concat(prds, axis=1)
     hits = pd.concat(hits, axis=1)
-    wrds = pd.DataFrame({'WordDISC':hat.word.values})
+    wrds = pd.DataFrame({'Word':hat.word.values})
     dddd = pd.concat([wrds,prds,hits], axis=1)
     return dddd
 

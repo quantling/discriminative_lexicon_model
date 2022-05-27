@@ -36,7 +36,7 @@ def test_functional_load (ind, cue, word, method):
             assert e_info == 'method must be corr or mse.'
     else:
         fl = lmea.functional_load(cue, fmat, word, smat, method)
-        _fl = ["-0.1262481035", "5.7233126850", "None", "1.0000000000", "1.4661185552", "None", "None", "None", "None", "0.0810372605", "4.7412209992", "None", "-0.6424966461", "3.2987667493", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None"]
+        _fl = ["-0.6234144595", "7.3524877073", "None", "0.8494412122", "1.6152075193", "None", "None", "None", "None", "0.9516095962", "3.3653333311", "None", "0.1372308544", "3.4029651394", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None"]
         assert '{:12.10f}'.format(fl) == _fl[ind]
 
 

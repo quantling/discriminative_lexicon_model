@@ -1,0 +1,7 @@
+Word	pred1	pred2	acc1	acc2
+walk0	walk0	walks	True	False
+walk1	walk0	walks	False	False
+walks	walks	walk1	True	False
+walked0	walked0	walked2	True	False
+walked1	walked0	walked2	False	False
+walked2	walked0	walked2	False	True

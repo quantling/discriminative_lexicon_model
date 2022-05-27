@@ -9,7 +9,10 @@ import xarray as xr
 TEST_ROOT = Path(__file__).parent
 RESOURCES = TEST_ROOT / 'resources'
 
-infl = pd.DataFrame({'word':['walk','walked','walks'], 'lemma':['walk','walk','walk'], 'person':['1/2','1/2/3','3'], 'tense':['pres','past','pres']})
+infl = pd.DataFrame({'word'  :['walk','walk','walks','walked'],
+                     'lemma' :['walk','walk','walk' ,'walk'  ],
+                     'person':['1'   ,'2'   ,'1/2/3','3'     ],
+                     'tense': ['pres','pres','pres' ,'past'  ]})
 
 pars_to_ngram = [
     (1,True,True,  ['#','a','b']),
@@ -28,11 +31,15 @@ pars_to_ngram = [
 def test_to_ngram (gram, unique, keep_order, result):
     assert pm.to_ngram('ababa', gram=gram, unique=unique, keep_order=keep_order) == result
 
-def test_gen_cmat ():
-    cmat = pm.gen_cmat(infl.word, cores=1)
-    _cmat = np.array([True, True, False, False, False, True, False, False, True, True, True, True, True, False, False, True, False, True, True, True, False, False, True, False, False, True, True]).reshape(3,9)
-    coords ={'word':infl.word.tolist(), 'cues':['#wa', 'alk', 'ed#', 'ked', 'ks#', 'lk#', 'lke', 'lks', 'wal']}
-    _cmat = xr.DataArray(_cmat, coords=coords)
+grams = [2,3]
+diffs = [True, False]
+pars = [ (i,j) for i in grams for j in diffs ]
+pars = [ (i,j[0],j[1]) for i,j in enumerate(pars) ]
+@pytest.mark.parametrize('ind, gram, diff', pars)
+def test_gen_cmat (ind, gram, diff):
+    _cmat = '{}/cmat_{:02d}.nc'.format(RESOURCES, ind)
+    _cmat = xr.open_dataarray(_cmat)
+    cmat = pm.gen_cmat(words=infl.word, gram=gram, differentiate_duplicates=diff)
     assert cmat.identical(_cmat)
 
 frms = [None, 'word', 'lemma']
@@ -41,20 +48,21 @@ dims = [3, 5]
 mns  = [0, 100]
 sds  = [1, 100]
 incl = [True, False]
+difs = [True, False]
 seds = [10]
-pars_gen_smat_sim = [ (i,j,k,l,m,n,o) for i in frms for j in seps for k in dims for l in mns for m in sds for n in incl for o in seds ]
-pars_gen_smat_sim = pars_gen_smat_sim + [('word', '/', 5, 0, 1, True, None)]
-pars_gen_smat_sim = [ (i,j[0],j[1],j[2],j[3],j[4],j[5],j[6]) for i,j in enumerate(pars_gen_smat_sim) ]
-@pytest.mark.parametrize('ind, form, sep, dim_size, mn, sd, incl, seed', pars_gen_smat_sim)
-def test_gen_smat_sim (ind, form, sep, dim_size, mn, sd, incl, seed):
+pars_gen_smat_sim = [ (i,j,k,l,m,n,o,p) for i in frms for j in seps for k in dims for l in mns for m in sds for n in incl for o in difs for p in seds ]
+pars_gen_smat_sim = pars_gen_smat_sim + [('word', '/', 5, 0, 1, True, True, None)]
+pars_gen_smat_sim = [ (i,j[0],j[1],j[2],j[3],j[4],j[5],j[6],j[7]) for i,j in enumerate(pars_gen_smat_sim) ]
+@pytest.mark.parametrize('ind, form, sep, dim_size, mn, sd, incl, diff, seed', pars_gen_smat_sim)
+def test_gen_smat_sim (ind, form, sep, dim_size, mn, sd, incl, diff, seed):
     if (form is None) and (not incl):
         with pytest.raises(ValueError) as e_info:
-            smat = pm.gen_smat_sim(infl, form, sep, dim_size, mn, sd, incl, seed)
+            smat = pm.gen_smat_sim(infl, form, sep, dim_size, mn, sd, incl, diff, seed)
             assert e_info == 'Specify which column to drop by the argument "form" when "include_form" is False.'
     else:
-        _smat = '{}/smat_sim_{:02d}.nc'.format(RESOURCES, ind)
+        _smat = '{}/smat_sim_{:03d}.nc'.format(RESOURCES, ind)
         _smat = xr.open_dataarray(_smat)
-        smat = pm.gen_smat_sim(infl, form, sep, dim_size, mn, sd, incl, seed)
+        smat = pm.gen_smat_sim(infl, form, sep, dim_size, mn, sd, incl, diff, seed)
         if seed is None:
             assert not smat.identical(_smat)
         else:
