@@ -34,7 +34,7 @@ def test_to_ngram (gram, unique, keep_order, result):
 grams = [2,3]
 diffs = [True, False]
 pars = [ (i,j) for i in grams for j in diffs ]
-pars = [ (i,j[0],j[1]) for i,j in enumerate(pars) ]
+pars = [ (i,*j) for i,j in enumerate(pars) ]
 @pytest.mark.parametrize('ind, gram, diff', pars)
 def test_gen_cmat (ind, gram, diff):
     _cmat = '{}/cmat_{:02d}.nc'.format(RESOURCES, ind)
@@ -52,7 +52,7 @@ difs = [True, False]
 seds = [10]
 pars_gen_smat_sim = [ (i,j,k,l,m,n,o,p) for i in frms for j in seps for k in dims for l in mns for m in sds for n in incl for o in difs for p in seds ]
 pars_gen_smat_sim = pars_gen_smat_sim + [('word', '/', 5, 0, 1, True, True, None)]
-pars_gen_smat_sim = [ (i,j[0],j[1],j[2],j[3],j[4],j[5],j[6],j[7]) for i,j in enumerate(pars_gen_smat_sim) ]
+pars_gen_smat_sim = [ (i,*j) for i,j in enumerate(pars_gen_smat_sim) ]
 @pytest.mark.parametrize('ind, form, sep, dim_size, mn, sd, incl, diff, seed', pars_gen_smat_sim)
 def test_gen_smat_sim (ind, form, sep, dim_size, mn, sd, incl, diff, seed):
     if (form is None) and (not incl):

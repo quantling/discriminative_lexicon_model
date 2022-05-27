@@ -23,7 +23,7 @@ wrd = ['walk', 'walked', 'xxx']
 mtd = ['corr', 'mse', 'xxx']
 
 pars_functional_load = [ (i,j,k) for i in sfx for j in wrd for k in mtd ]
-pars_functional_load = [ (i,j[0],j[1],j[2]) for i,j in enumerate(pars_functional_load) ]
+pars_functional_load = [ (i,*j) for i,j in enumerate(pars_functional_load) ]
 @pytest.mark.parametrize('ind, cue, word, method', pars_functional_load)
 def test_functional_load (ind, cue, word, method):
     if 'xxx' in (cue, word):
@@ -41,7 +41,7 @@ def test_functional_load (ind, cue, word, method):
 
 
 pars_semantic_support = [ (i,j) for i in wrd for j in sfx ]
-pars_semantic_support = [ (i, j[0], j[1]) for i,j in enumerate(pars_semantic_support) ]
+pars_semantic_support = [ (i,*j) for i,j in enumerate(pars_semantic_support) ]
 @pytest.mark.parametrize('ind, word, cue', pars_semantic_support)
 def test_semantic_support (ind, word, cue):
     if 'xxx' in (word, cue):
@@ -66,7 +66,7 @@ def test_semantic_support_word (ind, word):
         assert '{:12.10f}'.format(sp) == _sp[ind]
 
 pars_prod_acc = [ (i,j) for i in wrd for j in mtd ]
-pars_prod_acc = [ (i,j[0],j[1]) for i,j in enumerate(pars_prod_acc) ]
+pars_prod_acc = [ (i,*j) for i,j in enumerate(pars_prod_acc) ]
 @pytest.mark.parametrize('ind, word, method', pars_prod_acc)
 def test_prod_acc (ind, word, method):
     if 'xxx' == word:
@@ -86,8 +86,8 @@ cmats = [ (chat,cmat) for i in range(len(wrd)) ]
 smats = [ (shat,smat) for i in range(len(wrd)) ]
 mats = cmats + smats
 pars_uncertainty = wrd * 2
-pars_uncertainty = [ (i,j[0],j[1]) for i,j in zip(pars_uncertainty, mats) ]
-pars_uncertainty = [ (i,j[0],j[1],j[2]) for i,j in enumerate(pars_uncertainty) ]
+pars_uncertainty = [ (i,*j) for i,j in zip(pars_uncertainty, mats) ]
+pars_uncertainty = [ (i,*j) for i,j in enumerate(pars_uncertainty) ]
 @pytest.mark.parametrize('ind, word, hat, mat', pars_uncertainty)
 def test_uncertainty (ind, word, hat, mat):
     if 'xxx' == word:
