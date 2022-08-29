@@ -3,8 +3,8 @@ import numpy as np
 import xarray as xr
 from multiprocessing import Pool
 
-def to_ngram (x, gram=2, unique=True, keep_order=True):
-    x = '#{}#'.format(x)
+def to_ngram (x, gram=2, unique=True, keep_order=True, word_boundary='#'):
+    x = '{}{}{}'.format(word_boundary, x, word_boundary)
     cues = [ x[(i-gram):i] for i in range(gram,len(x)+1) ]
     if unique and keep_order:
         cues = list(dict.fromkeys(cues))
