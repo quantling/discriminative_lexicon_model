@@ -221,3 +221,12 @@ def gen_chat (smat=None, gmat=None, cmat=None, hmat=None):
         raise ValueError('(S, G), (S, C), or (H, C) is necessary.')
     return chat
 
+def gen_vmat (forms):
+    if len(set([ len(i) for i in forms ]))!=1:
+        raise ValueError('Multiple string lengths detected. Check each element of the list in terms of their length.')
+    else:
+        vmat = xr.DataArray([ find_continuous(i, forms) for i in forms ], dims=['current','next'], coords={'current':forms, 'next':forms})
+    return vmat
+
+def find_continuous (target, forms):
+    return [ target[1:]==i[:-1] for i in forms ]
