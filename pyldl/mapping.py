@@ -226,6 +226,13 @@ def gen_vmat (forms):
         raise ValueError('Multiple string lengths detected. Check each element of the list in terms of their length.')
     else:
         vmat = xr.DataArray([ find_continuous(i, forms) for i in forms ], dims=['current','next'], coords={'current':forms, 'next':forms})
+
+    add = np.full( (1, vmat.shape[1]), False )
+    add = xr.DataArray(add, dims=vmat.dims, coords={'current':[''], 'next':vmat.next.values})
+    pos = [ i for i in add.next.values if i[0]=='#' ]
+    add.loc['',pos] = True
+
+    vmat = xr.concat((vmat, add), dim='current')
     return vmat
 
 def find_continuous (target, forms):

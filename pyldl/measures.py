@@ -14,6 +14,36 @@ def functional_load (cue, fmat, word, smat, method='corr'):
         raise ValueError('method must be corr or mse.')
     return fload
 
+def partial_semantic_support (form, word, cmat, smat, fmat, gmat):
+    cues = pmap.to_ngram(word, len(form), unique=False, keep_order=True)
+    pos  = [ i for i,j in enumerate(cues) if j==form ]
+    if len(pos)==0:
+        raise ValueError('The specified form was not found in the specified word.')
+    elif len(pos)>1:
+        raise ValueError('The specified form was found at multiple locations of the specified word.')
+    else:
+        pos = pos[0]
+
+    gold = smat.loc[word,:]
+
+    prev_cues = cues[:pos]
+    cvec_t = np.zeros((1,cmat.shape[1]))
+    cvec_t = xr.DataArray(cvec_t, dims=('word','cues'), coords={'word':[word], 'cues':cmat.cues.values})
+    cvec_t.loc[word, prev_cues] = 1
+    shat_t_minus1 = np.matmul(np.array(cvec_t), np.array(fmat))
+    svec_t = np.array(gold) - shat_t_minus1
+
+    vmat = pmap.gen_vmat(cmat.cues.values)
+    if len(prev_cues)==0:
+        prev_cues = ['']
+    gmat_t = np.matmul(np.array(gmat), np.array(np.diag(vmat.loc[prev_cues[-1],:])))
+
+    chat_t = np.matmul(svec_t, gmat_t)
+    chat_t = xr.DataArray(chat_t, dims=('word','cues'), coords={'word':[word], 'cues':cmat.cues.values})
+    semsup_t = chat_t.loc[word, form]
+
+    return float(semsup_t)
+
 def semantic_support (word, cue, chat):
     return float(chat.loc[word,cue].values)
 
@@ -50,5 +80,4 @@ def uncertainty (word, hat, mat):
 
 def vector_length (word, smat):
     return np.absolute(smat.loc[word,:].values).sum()
-
 
