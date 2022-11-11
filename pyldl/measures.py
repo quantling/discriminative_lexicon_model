@@ -14,7 +14,7 @@ def functional_load (cue, fmat, word, smat, method='corr'):
         raise ValueError('method must be corr or mse.')
     return fload
 
-def partial_semantic_support (form, word, cmat, smat, fmat, gmat):
+def partial_semantic_support (form, word, cmat, smat, fmat, gmat, vmat=None):
     cues = pmap.to_ngram(word, len(form), unique=False, keep_order=True)
     pos  = [ i for i,j in enumerate(cues) if j==form ]
     if len(pos)==0:
@@ -33,7 +33,10 @@ def partial_semantic_support (form, word, cmat, smat, fmat, gmat):
     shat_t_minus1 = np.matmul(np.array(cvec_t), np.array(fmat))
     svec_t = np.array(gold) - shat_t_minus1
 
-    vmat = pmap.gen_vmat(cmat.cues.values)
+    if vmat is None:
+        print('No V-matrix is provided. A V-matrix will be estimated. This process may take a while.')
+        vmat = pmap.gen_vmat(cmat.cues.values)
+
     if len(prev_cues)==0:
         prev_cues = ['']
     gmat_t = np.matmul(np.array(gmat), np.array(np.diag(vmat.loc[prev_cues[-1],:])))
