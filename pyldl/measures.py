@@ -14,13 +14,16 @@ def functional_load (cue, fmat, word, smat, method='corr'):
         raise ValueError('method must be corr or mse.')
     return fload
 
-def partial_semantic_support (form, word, cmat, smat, fmat, gmat, vmat=None):
+def partial_semantic_support (form, word, cmat, smat, fmat, gmat, vmat=None, choose_pos=None):
     cues = pmap.to_ngram(word, len(form), unique=False, keep_order=True)
     pos  = [ i for i,j in enumerate(cues) if j==form ]
     if len(pos)==0:
         raise ValueError('The specified form was not found in the specified word.')
     elif len(pos)>1:
-        raise ValueError('The specified form was found at multiple locations of the specified word.')
+        if choose_pos is None:
+            raise ValueError('The specified form was found at multiple locations of the specified word.')
+        else:
+            pos = pos[choose_pos]
     else:
         pos = pos[0]
 
