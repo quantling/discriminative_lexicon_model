@@ -132,4 +132,61 @@ def test_gen_chat (ind, smat, gmat, cmat, hmat):
             _chat = _chat.round(10)
         assert chat.identical(_chat)
 
+def test_update_weight_matrix ():
+    w = np.zeros((4,2))
+    c = [1, 1, 0, 0]
+    o = [1, 0]
+    l = 0.1
+    w = pm.update_weight_matrix(w, c, o, l)
+    g = np.array([0.1, 0, 0.1, 0, 0, 0, 0, 0]).reshape(4,2)
+    ok0 = np.allclose(w, g, atol=1e-18)
+    c = [1, 0, 1, 1]
+    o = [0, 1]
+    w = pm.update_weight_matrix(w, c, o, l)
+    g = np.array([0.09, 0.1, 0.1, 0, -0.01, 0.1, -0.01, 0.1]).reshape(4,2)
+    ok1 = np.allclose(w, g, atol=1e-18)
+    assert ok0 and ok1
+
+def test_incremental_learning01 ():
+    cmat = pm.gen_cmat(['a','an'], gram=2)
+    smat = pm.gen_mmat(pd.DataFrame({'Word':['a','an']}))
+    fmat = pm.incremental_learning(['a', 'an'], cmat, smat)
+    gold = np.array([0.09, 0.1, 0.1, 0, -0.01, 0.1, -0.01, 0.1]).reshape((4,2))
+    gold = xr.DataArray(gold, dims=('cues', 'feature'), coords={'cues':['#a','a#','an','n#'], 'feature':['Word:a','Word:an']})
+    assert fmat.round(15).identical(gold.round(15))
+
+def test_incremental_learning02 ():
+    cmat = pm.gen_cmat(['a','an'], gram=2)
+    smat = xr.DataArray([[0.7, -0.2, 0.1], [0,0,0]], dims=('word','feature'), coords={'word':['a','an'], 'feature':['Word:a','Word:an','X']})
+    fmat = pm.incremental_learning(['a'], cmat, smat)
+    gold = np.array([0.07, -0.02, 0.01]*2 + [0, 0, 0]*2).reshape(4,3)
+    gold = xr.DataArray(gold, dims=('cues', 'feature'), coords={'cues':['#a','a#','an','n#'], 'feature':['Word:a','Word:an','X']})
+    assert fmat.round(15).identical(gold.round(15))
+
+def test_incremental_learning03 ():
+    cmat  = pm.gen_cmat(['a','an'], gram=2)
+    smat  = pm.gen_mmat(pd.DataFrame({'Word':['a','an']}))
+    fmats = pm.incremental_learning(['a', 'an'], cmat, smat, return_intermediate_weights=True)
+    gold0 = np.array([0.00, 0.00, 0.00, 0.00,  0.00, 0.00,  0.00, 0.00]).reshape((4,2))
+    gold1 = np.array([0.10, 0.00, 0.10, 0.00,  0.00, 0.00,  0.00, 0.00]).reshape((4,2))
+    gold2 = np.array([0.09, 0.10, 0.10, 0.00, -0.01, 0.10, -0.01, 0.10]).reshape((4,2))
+    gold0 = xr.DataArray(gold0, dims=('cues', 'feature'), coords={'cues':['#a','a#','an','n#'], 'feature':['Word:a','Word:an']})
+    gold1 = xr.DataArray(gold1, dims=('cues', 'feature'), coords={'cues':['#a','a#','an','n#'], 'feature':['Word:a','Word:an']})
+    gold2 = xr.DataArray(gold2, dims=('cues', 'feature'), coords={'cues':['#a','a#','an','n#'], 'feature':['Word:a','Word:an']})
+    ok0   = fmats[0].round(15).identical(gold0)
+    ok1   = fmats[1].round(15).identical(gold1)
+    ok2   = fmats[2].round(15).identical(gold2)
+    assert (ok0 and ok1) and ok2
+
+def test_weight_by_freq ():
+    words  = ['as','bs','bd']
+    freqs  = [298, 1, 1]
+    cmat   = pm.gen_cmat(words, gram=2)
+    cmat_f = pm.weight_by_freq(cmat, freqs)
+    freqs  = np.array(freqs)
+    freqs  = freqs / freqs.max()
+    freqs  = np.sqrt(freqs)
+    freqs  = np.diag(freqs)
+    gold   = xr.DataArray(np.matmul(freqs, cmat.values), dims=cmat.dims, coords=cmat.coords)
+    assert gold.identical(cmat_f)
 

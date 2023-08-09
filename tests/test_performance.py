@@ -61,5 +61,5 @@ pars = [ [i,*j] for i,j in enumerate(pars) ]
 def test_predict (ind, wrd, hat, mat, dist):
     pred = lper.predict(wrd, hat, mat, dist)
     _prd = '{}/predict_{:02d}.csv'.format(RESOURCES, ind)
-    _prd = pd.read_csv(_prd, sep='\t', header=None, squeeze=True)
+    _prd = pd.read_csv(_prd, sep='\t', header=None).squeeze('columns')
     assert pred.equals(_prd)

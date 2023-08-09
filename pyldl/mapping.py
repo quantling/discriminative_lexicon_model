@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 from multiprocessing import Pool
+import pyldl.mapping as lmap
 
 def to_ngram (x, gram=2, unique=True, keep_order=True, word_boundary='#'):
     x = '{}{}{}'.format(word_boundary, x, word_boundary)
@@ -237,3 +238,70 @@ def gen_vmat (forms):
 
 def find_continuous (target, forms):
     return [ target[1:]==i[:-1] for i in forms ]
+
+def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False):
+    if weight_matrix is None:
+        _dims = (cue_matrix.dims[1], out_matrix.dims[1])
+        _coords = {_dims[0]: cue_matrix[_dims[0]].values.tolist(), _dims[1]: out_matrix[_dims[1]].values.tolist()}
+        weight_matrix = np.zeros((cue_matrix.shape[1], out_matrix.shape[1]))
+        weight_matrix = xr.DataArray(weight_matrix, dims=_dims, coords=_coords)
+    makesure_xarray(cue_matrix, out_matrix, weight_matrix)
+    if return_intermediate_weights:
+        weight_mats = [weight_matrix]
+    for i in rows:
+        cvec = cue_matrix.loc[[i],:]
+        ovec = out_matrix.loc[[i],:]
+        weight_matrix = update_weight_matrix(weight_matrix, cvec, ovec, learning_rate)
+        if return_intermediate_weights:
+            weight_mats = weight_mats + [weight_matrix]
+    if return_intermediate_weights:
+        res = weight_mats
+    else:
+        res = weight_matrix
+    return res
+
+def update_weight_matrix (weight_matrix, cue_vector, out_vector, learning_rate=0.1):
+    dlt = delta_weight_matrix(weight_matrix, cue_vector, out_vector, learning_rate)
+    weight_matrix = weight_matrix + dlt
+    return weight_matrix
+
+def delta_weight_matrix (weight_matrix, cue_vector, out_vector, learning_rate=0.1):
+    weight_matrix, cue_vector, out_vector = to_nparray(weight_matrix, cue_vector, out_vector)
+    dlt = out_vector - matmul(cue_vector, weight_matrix)
+    dlt = matmul(cue_vector.T, dlt) * learning_rate
+    return dlt
+
+def matmul (m1, m2):
+    if any(is_xarray(m1, m2)):
+        if not np.array_equal(m1[m1.dims[1]].values, m2[m2.dims[0]].values):
+            raise ValueError('The second dimension values of the first matrix and the first dimension values of the second matrix do not match.')
+        mat = m1 @ m2
+    else:
+        mat = np.matmul(m1, m2)
+    return mat
+
+def makesure_xarray (*args):
+    x = [ isinstance(i, xr.core.dataarray.DataArray) for i in args ]
+    if not all(x):
+        raise TypeError('The input array(s) must be an instance of xarray.core.dataarray.DataArray.')
+    return None
+
+def is_xarray (*args):
+    x = [ isinstance(i, xr.core.dataarray.DataArray) for i in args ]
+    return x
+
+def to_nparray (*args):
+    x = [ np.atleast_2d(np.array(i)) for i in args ]
+    return x
+
+def weight_by_freq (mat, freqs):
+    freqs = np.array(freqs)
+    freqs = freqs / freqs.max()
+    freqs = np.sqrt(freqs)
+    freqs = np.diag(freqs)
+    if isinstance(mat, xr.core.dataarray.DataArray):
+        mat = xr.DataArray(np.matmul(freqs, mat.values), dims=mat.dims, coords=mat.coords)
+    else:
+        mat = np.matmul(freqs, mat)
+    return mat
+
