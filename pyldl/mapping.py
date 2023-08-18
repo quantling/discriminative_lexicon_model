@@ -3,6 +3,7 @@ import numpy as np
 import xarray as xr
 from multiprocessing import Pool
 import pyldl.mapping as lmap
+from tqdm import tqdm
 
 def to_ngram (x, gram=2, unique=True, keep_order=True, word_boundary='#'):
     x = '{}{}{}'.format(word_boundary, x, word_boundary)
@@ -248,7 +249,7 @@ def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weigh
     makesure_xarray(cue_matrix, out_matrix, weight_matrix)
     if return_intermediate_weights:
         weight_mats = [weight_matrix]
-    for i in rows:
+    for i in tqdm(rows):
         cvec = cue_matrix.loc[[i],:]
         ovec = out_matrix.loc[[i],:]
         weight_matrix = update_weight_matrix(weight_matrix, cvec, ovec, learning_rate)
