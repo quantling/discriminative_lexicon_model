@@ -9,11 +9,18 @@ pyldl - Linear Discriminative Learning in Python
 import os
 import sys
 import multiprocessing as mp
-from pip._vendor import pkg_resources
+try:
+    from importlib.metadata import requires
+except ModuleNotFoundError:
+    requires = None
+try:
+    from packaging.requirements import Requirement
+except ModuleNotFoundError:
+    Requirement = None
 
 __author__ = 'Motoki Saito'
 __author_email__ = 'motoki.saito@uni-tuebingen.de'
-__version__ = '1.1'
+__version__ = '1.2'
 __license__ = 'MIT'
 __description__ = 'Linear Discriminative Learning in Python'
 __classifiers__ = [
@@ -23,7 +30,6 @@ __classifiers__ = [
     'License :: OSI Approved :: MIT License',
     'Operating System :: POSIX :: Linux',
     'Programming Language :: Python',
-    'Programming Language :: Python :: 3.7',
     'Programming Language :: Python :: 3.8',
     'Programming Language :: Python :: 3 :: Only',
     'Topic :: Scientific/Engineering'
@@ -34,8 +40,8 @@ def sysinfo():
     """
     Prints the system information
     """
-    pyldl = pkg_resources.working_set.by_key['pyldl']
-    dependencies = [ i.project_name for i in pyldl.requires() ]
+    if requires:
+        dependencies = [ Requirement(i).name for i in requires('pyndl') if not Requirement(req).marker]
 
     header = ('Pyldl Information\n'
               '=================\n\n')
@@ -59,7 +65,11 @@ def sysinfo():
     dependencies = [ i for i in dependencies if not i in excludes ]
     deps = ('Dependencies\n'
             '------------\n')
-    deps += '\n'.join( '{pkg.__name__}: {pkg.__version__}'.format(pkg=__import__(dep)) for dep in dependencies )
+
+    if requires:
+        deps += "\n".join("{pkg.__name__}: {pkg.__version__}".format(pkg=__import__(dep)) for dep in dependencies)
+    else:
+        deps = 'You need Python 3.8 or higher to show dependencies.'
 
     print(header + general + osinfo + deps)
     return None
