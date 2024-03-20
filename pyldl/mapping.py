@@ -5,6 +5,34 @@ from multiprocessing import Pool
 import pyldl.mapping as lmap
 from tqdm import tqdm
 
+def to_cues (words, gram=3):
+    words = [ '#' + i + '#'for i in words ]
+    words = [ i.ljust(max([ len(i) for i in words ]), ' ') for i in words ]
+    cues = [ [ i[j:(j+gram)] for j in range(len(i)-(gram-1)) ] for i in words ]
+    cues = [ [ j for j in i if not (' ' in j) ] for i in cues ]
+    cues = [ j for i in cues for j in i ]
+    cues = sorted(list(set(cues)))
+    return cues
+
+def gen_vmat (words, gram=3):
+    cues = to_cues(words, gram=gram)
+    gram = infer_gram(cues)
+    cur  = [ i[-(gram-1):] for i in cues ]
+    nex  = [ i[:(gram-1)]  for i in cues ]
+    vmat = np.equal.outer(cur, nex)
+    vmat = xr.DataArray(vmat, dims=('current','next'), coords={'current':cues, 'next':cues})
+    add  = xr.DataArray(np.array([ i[0]=='#' for i in cues]).reshape((1,-1)), dims=vmat.dims, coords={'current':[''], 'next':vmat.next.values})
+    vmat = xr.concat((vmat, add), dim='current')
+    return vmat
+
+def infer_gram (cues):
+    cuelens = sorted(list(set([ len(i) for i in cues ])))
+    if len(cuelens)==1:
+        gram = cuelens[0]
+    else:
+        raise ValueError('Multiple grams are found.')
+    return gram
+
 def to_ngram (x, gram=2, unique=True, keep_order=True, word_boundary='#'):
     x = '{}{}{}'.format(word_boundary, x, word_boundary)
     cues = [ x[(i-gram):i] for i in range(gram,len(x)+1) ]
@@ -47,7 +75,7 @@ def _differentiate_duplicates (words):
         return x
     words = pd.DataFrame({'word':words})
     words['id'] = range(len(words))
-    words = words.groupby('word').apply(_assign_id).reset_index(drop=True)
+    words = words.groupby('word', group_keys=False).apply(_assign_id).reset_index(drop=True)
     words = words.sort_values('id')
     return words['word'].tolist()
 
@@ -222,23 +250,6 @@ def gen_chat (smat=None, gmat=None, cmat=None, hmat=None):
     else:
         raise ValueError('(S, G), (S, C), or (H, C) is necessary.')
     return chat
-
-def gen_vmat (forms):
-    if len(set([ len(i) for i in forms ]))!=1:
-        raise ValueError('Multiple string lengths detected. Check each element of the list in terms of their length.')
-    else:
-        vmat = xr.DataArray([ find_continuous(i, forms) for i in forms ], dims=['current','next'], coords={'current':forms, 'next':forms})
-
-    add = np.full( (1, vmat.shape[1]), False )
-    add = xr.DataArray(add, dims=vmat.dims, coords={'current':[''], 'next':vmat.next.values})
-    pos = [ i for i in add.next.values if i[0]=='#' ]
-    add.loc['',pos] = True
-
-    vmat = xr.concat((vmat, add), dim='current')
-    return vmat
-
-def find_continuous (target, forms):
-    return [ target[1:]==i[:-1] for i in forms ]
 
 def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False):
     if weight_matrix is None:

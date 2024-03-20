@@ -6,7 +6,8 @@ from pathlib import Path
 import pyldl.mapping as pm
 import xarray as xr
 
-TEST_ROOT = Path(__file__).parent
+TEST_ROOT = Path('.')
+#TEST_ROOT = Path(__file__).parent
 RESOURCES = TEST_ROOT / 'resources'
 
 infl = pd.DataFrame({'word'  :['walk','walk','walks','walked'],
@@ -192,10 +193,7 @@ def test_weight_by_freq ():
 
 def test_gen_vmat ():
     words = ['abx', 'aby']
-    cues = [ pm.to_ngram(i, gram=3) for i in words ]
-    cues = [ j for i in cues for j in i ]
-    cues = sorted(list(set(cues)))
-    vmat_test = pm.gen_vmat(cues)
+    vmat_test = pm.gen_vmat(words)
     vmat = [False, True, True, False, False, False, False, False, True, False, False, False, False, False, True, False, False, False, False, False, False, False, False, False, False, True, False, False, False, False]
     vmat = np.array(vmat).reshape(6,5)
     vmat = xr.DataArray(vmat, dims=('current', 'next'), coords={'current':['#ab', 'abx', 'aby', 'bx#', 'by#', ''], 'next':['#ab', 'abx', 'aby', 'bx#', 'by#']})
