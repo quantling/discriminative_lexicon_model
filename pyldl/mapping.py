@@ -48,36 +48,42 @@ def _cue_exist (x):
     i,j = x
     return j in '#'+i+'#'
 
-def gen_cmat (words, gram=3, cores=1, differentiate_duplicates=False):
-    cues = [ to_ngram(i, gram) for i in words ]
-    cues = list(dict.fromkeys([ j for i in cues for j in i ]))
-    # cues = sorted(list(set([ j for i in cues for j in i ])))
-    if cores==1:
-        cmat = [ j in '#'+i+'#' for i in words for j in cues ]
-    else:
-        cmat = [ (i,j) for i in words for j in cues ]
-        with Pool(cores) as p:
-            cmat = p.map(_cue_exist, cmat)
+def gen_cmat (words, gram=3, count=True, noise=0, randseed=None, differentiate_duplicates=False):
+    cues = unique_cues(words, gram=gram)
+    cuelen = list(set([ len(i) for i in cues ]))
+    if len(cuelen)!=1:
+        raise ValueError('Variable cue length (gram size) detected. Check length of each cue.')
+    cmat = [ lmap.to_ngram('#'+i+'#', gram=cuelen[0], unique=False).count(j) for i in words for j in cues ]
+    if not count:
+        cmat = [ 1 if i>1 else i for i in cmat ]
     cmat = np.array(cmat).reshape(len(words), len(cues))
     if differentiate_duplicates:
         words = _differentiate_duplicates(words)
-    coor = {'word':list(words), 'cues':cues}
+    coor = {'word':words, 'cues':cues}
     cmat = xr.DataArray(cmat, dims=('word','cues'), coords=coor)
-    return cmat.astype(int)
+    if noise:
+        if isinstance(noise, bool):
+            noise = 0.1
+        if randseed is None:
+            cmat = cmat + np.random.normal(scale=noise, size=cmat.shape)
+        else:
+            rng = np.random.default_rng(randseed)
+            cmat = cmat + rng.normal(scale=noise, size=cmat.shape)
+    assert (np.array(words) == cmat.word.values).all()
+    return cmat
+
+def unique_cues (words, gram):
+    cues = [ to_ngram(i, gram=gram) for i in words ]
+    cues = list(dict.fromkeys([ j for i in cues for j in i ]))
+    return cues
+
 
 def _differentiate_duplicates (words):
-    def _assign_id (x):
-        x = x.reset_index(drop=True)
-        if len(x)>1:
-            x['word'] = x['word'] + x.index.astype(str)
-        else:
-            x['word'] = x['word']
-        return x
-    words = pd.DataFrame({'word':words})
-    words['id'] = range(len(words))
-    words = words.groupby('word', group_keys=False).apply(_assign_id).reset_index(drop=True)
-    words = words.sort_values('id')
-    return words['word'].tolist()
+    uniqs = pd.Series(words) + pd.Series(words, name='hoge').to_frame().groupby('hoge').cumcount().astype(str)
+    non_dup_pos = ~pd.Series(words).duplicated(keep=False)
+    uniqs.loc[non_dup_pos] = pd.Series(words).loc[non_dup_pos]
+    return uniqs.to_list()
+
 
 def gen_smat_sim (infl, form=None, sep=None, dim_size=5, mn=0, sd=1, include_form=True, differentiate_duplicates=False, seed=None):
     mmat = gen_mmat(infl, form, sep, include_form, differentiate_duplicates)

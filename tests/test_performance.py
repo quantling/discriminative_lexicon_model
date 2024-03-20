@@ -14,7 +14,7 @@ infl = pd.DataFrame({'word'  :['walk', 'walk', 'walks', 'walked', 'walked', 'wal
                      'lemma' :['walk', 'walk', 'walk' , 'walk'  , 'walk'  , 'walk'  ],
                      'person':['1'   , '2'   , '3'    , '1'     , '2'     , '3'     ],
                      'tense' :['pres', 'pres', 'pres' , 'past'  , 'past'  , 'past'  ]})
-cmat = pm.gen_cmat(infl.word, cores=1, differentiate_duplicates=True)
+cmat = pm.gen_cmat(infl.word, gram=3, count=False, noise=0, randseed=None, differentiate_duplicates=True)
 smat = pm.gen_smat_sim(infl, form='word', sep='/', dim_size=100, seed=10, differentiate_duplicates=True)
 chat = pm.gen_chat(smat=smat, cmat=cmat)
 shat = pm.gen_shat(cmat=cmat, smat=smat)

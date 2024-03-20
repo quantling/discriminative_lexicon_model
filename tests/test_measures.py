@@ -11,7 +11,7 @@ TEST_ROOT = Path(__file__).parent
 RESOURCES = TEST_ROOT / 'resources'
 
 infl = pd.DataFrame({'word':['walk','walked','walks'], 'lemma':['walk','walk','walk'], 'person':['1/2','1/2/3','3'], 'tense':['pres','past','pres']})
-cmat = pm.gen_cmat(infl.word, cores=1)
+cmat = pm.gen_cmat(infl.word, gram=3, count=False, noise=0)
 smat = pm.gen_smat_sim(infl, form='word', sep='/', dim_size=5, seed=10)
 fmat = pm.gen_fmat(cmat, smat)
 chat = pm.gen_chat(smat=smat, cmat=cmat)

@@ -32,16 +32,30 @@ pars_to_ngram = [
 def test_to_ngram (gram, unique, keep_order, result):
     assert pm.to_ngram('ababa', gram=gram, unique=unique, keep_order=keep_order) == result
 
-grams = [2,3]
-diffs = [True, False]
-pars = [ (i,j) for i in grams for j in diffs ]
-pars = [ (i,*j) for i,j in enumerate(pars) ]
-@pytest.mark.parametrize('ind, gram, diff', pars)
-def test_gen_cmat (ind, gram, diff):
-    _cmat = '{}/cmat_{:02d}.nc'.format(RESOURCES, ind)
-    _cmat = xr.open_dataarray(_cmat)
-    cmat = pm.gen_cmat(words=infl.word, gram=gram, differentiate_duplicates=diff)
-    assert cmat.identical(_cmat)
+
+
+grams  = [2,3]
+counts = [True, False]
+noises = [0, 0.1]
+pars = [ (i,j,k) for i in grams for j in counts for k in noises ]
+@pytest.mark.parametrize('gram, count, noise', pars)
+def test_gen_cmat (gram, count, noise):
+    cmat0_shape = (2,7) if gram==2 else (2,8)
+    cmat0_dims = ('word', 'cues')
+    cmat0_word_vals = ['banana', 'aaaa']
+    cmat0_cues_vals = ['#b', 'ba', 'an', 'na', 'a#', '#a', 'aa'] if gram==2 else ['#ba', 'ban', 'ana', 'nan', 'na#', '#aa', 'aaa', 'aa#']
+    d = {(2, True): [1, 1, 2, 2, 1, 0, 0, 0, 0, 0, 0, 1, 1, 3],
+         (2, False): [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1],
+         (3, True): [1, 1, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 1],
+         (3, False): [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1]}
+    cmat0_vals = np.array(d[(gram, count)]).reshape(cmat0_shape)
+    if noise:
+        rand = np.random.default_rng(100).normal(scale=0.1, size=cmat0_shape)
+        cmat0_vals = cmat0_vals + rand
+    cmat0 = xr.DataArray(np.array(cmat0_vals).reshape(cmat0_shape), dims=cmat0_dims, coords={'word':cmat0_word_vals, 'cues':cmat0_cues_vals})
+    cmat_test = pm.gen_cmat(words=['banana', 'aaaa'], gram=gram, count=count, noise=noise, randseed=100)
+    assert cmat_test.identical(cmat0)
+
 
 frms = [None, 'word', 'lemma']
 seps = [None, '/']
@@ -71,7 +85,7 @@ def test_gen_smat_sim (ind, form, sep, dim_size, mn, sd, incl, diff, seed):
 
 
 def test_gen_fmat():
-    cmat = pm.gen_cmat(infl.word, cores=1)
+    cmat = pm.gen_cmat(infl.word, gram=3, count=False, noise=0)
     smat = pm.gen_smat_sim(infl, form='word', sep='/', dim_size=5, seed=10)
     fmat = pm.gen_fmat(cmat, smat)
     _fmat = '{}/fmat.nc'.format(RESOURCES)
@@ -79,14 +93,14 @@ def test_gen_fmat():
     assert fmat.identical(_fmat)
 
 def test_gen_gmat():
-    cmat = pm.gen_cmat(infl.word, cores=1)
+    cmat = pm.gen_cmat(infl.word, gram=3, count=False, noise=0)
     smat = pm.gen_smat_sim(infl, form='word', sep='/', dim_size=5, seed=10)
     gmat = pm.gen_gmat(cmat, smat)
     _gmat = '{}/gmat.nc'.format(RESOURCES)
     _gmat = xr.open_dataarray(_gmat)
     assert gmat.identical(_gmat)
 
-cmat = pm.gen_cmat(infl.word, cores=1)
+cmat = pm.gen_cmat(infl.word, gram=3, count=False, noise=0)
 smat = pm.gen_smat_sim(infl, form='word', sep='/', dim_size=5, seed=10)
 fmat = pm.gen_fmat(cmat, smat)
 hmat = np.array(np.matmul(np.matmul(np.array(cmat),np.linalg.pinv(np.matmul(np.array(cmat).T,np.array(cmat)))),np.array(cmat).T))
