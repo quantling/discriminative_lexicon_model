@@ -190,3 +190,14 @@ def test_weight_by_freq ():
     gold   = xr.DataArray(np.matmul(freqs, cmat.values), dims=cmat.dims, coords=cmat.coords)
     assert gold.identical(cmat_f)
 
+def test_gen_vmat ():
+    words = ['abx', 'aby']
+    cues = [ pm.to_ngram(i, gram=3) for i in words ]
+    cues = [ j for i in cues for j in i ]
+    cues = sorted(list(set(cues)))
+    vmat_test = pm.gen_vmat(cues)
+    vmat = [False, True, True, False, False, False, False, False, True, False, False, False, False, False, True, False, False, False, False, False, False, False, False, False, False, True, False, False, False, False]
+    vmat = np.array(vmat).reshape(6,5)
+    vmat = xr.DataArray(vmat, dims=('current', 'next'), coords={'current':['#ab', 'abx', 'aby', 'bx#', 'by#', ''], 'next':['#ab', 'abx', 'aby', 'bx#', 'by#']})
+    assert vmat.identical(vmat_test)
+
