@@ -3,9 +3,9 @@ import pandas as pd
 import numpy as np
 
 class LDL:
-    def __init__ (self, words=None, embed=None, noise=False, events=None):
-        if (not words is None) and (not embed is None):
-            self.gen_matrices(words, embed, noise=noise, events=events)
+    def __init__ (self, words=None, embed_or_df=None, noise=False, events=None):
+        if (not words is None) and (not embed_or_df is None):
+            self.gen_all_matrices(words, embed_or_df, noise=noise, events=events)
         else:
             pass
         return None
@@ -53,12 +53,12 @@ class LDL:
         self.vmat = lm.gen_vmat(self.words)
         return None
 
-    def gen_all_matrices (self, words, embed, noise=False, events=None):
-        self.cmat = self.gen_cmat(words=words, noise=noise)
-        self.smat = self.gen_smat(embed=embed, words=None, noise=noise)
-        self.fmat = self.gen_fmat(events)
-        self.gmat = self.gen_gmat(events)
-        self.vmat = self.gen_vmat(words=None)
+    def gen_all_matrices (self, words, embed_or_df, noise=False, events=None):
+        self.gen_cmat(words=words, noise=noise)
+        self.gen_smat(embed_or_df=embed_or_df, words=None, noise=noise)
+        self.gen_fmat(events)
+        self.gen_gmat(events)
+        self.gen_vmat(words=None)
         return None
 
     def produce (self, gold, word=False, roundby=10, max_attempt=50, positive=False):
