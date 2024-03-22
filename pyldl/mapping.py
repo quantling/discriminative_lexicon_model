@@ -84,7 +84,7 @@ def _differentiate_duplicates (words):
     uniqs.loc[non_dup_pos] = pd.Series(words).loc[non_dup_pos]
     return uniqs.to_list()
 
-def gen_smat (words, embed, noise=0):
+def gen_smat (words, embed, noise=0, randseed=None):
     """
     Parameters
     ----------
@@ -107,11 +107,11 @@ def gen_smat (words, embed, noise=0):
             smat = smat + np.random.normal(scale=noise, size=smat.shape)
         else:
             rng = np.random.default_rng(randseed)
-            smat = smat + rng.normal(scale=noise, size=cmat.shape)
+            smat = smat + rng.normal(scale=noise, size=smat.shape)
     assert (np.array(words) == smat.word.values).all()
     return smat
 
-def gen_smat_from_df (df):
+def gen_smat_from_df (df, noise=0, randseed=None):
     """
     Converts a pandas dataframe to an S-matrix. The input dataframe (i.e., df) must have indices and columns. Indices and columns of the dataframe are expected to be words and semantic dimensions respectively. They will be used as coordinates of the output xarray.
 
@@ -126,6 +126,14 @@ def gen_smat_from_df (df):
         It has indices of the input dataframe as words (the first dimension) and columns of the input dataframe as semantic dimensions (the second dimension). The values of the matrix will be the same as it looks in df.
     """
     smat = xr.DataArray(df.to_numpy(), dims=('word', 'semantics'), coords={'word':df.index, 'semantics':df.columns})
+    if noise:
+        if isinstance(noise, bool):
+            noise = 0.1
+        if randseed is None:
+            smat = smat + np.random.normal(scale=noise, size=smat.shape)
+        else:
+            rng = np.random.default_rng(randseed)
+            smat = smat + rng.normal(scale=noise, size=smat.shape)
     return smat
 
 def gen_smat_sim (infl, form=None, sep=None, dim_size=5, mn=0, sd=1, include_form=True, differentiate_duplicates=False, seed=None):
