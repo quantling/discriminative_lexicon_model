@@ -6,8 +6,8 @@ from pathlib import Path
 import pyldl.mapping as pm
 import xarray as xr
 
-TEST_ROOT = Path('.')
-#TEST_ROOT = Path(__file__).parent
+# TEST_ROOT = Path('.')
+TEST_ROOT = Path(__file__).parent
 RESOURCES = TEST_ROOT / 'resources'
 
 infl = pd.DataFrame({'word'  :['walk','walk','walks','walked'],
@@ -193,7 +193,7 @@ def test_incremental_learning03 ():
     ok2   = fmats[2].round(15).identical(gold2)
     assert (ok0 and ok1) and ok2
 
-def test_incremental_learning_byind ():
+def test_incremental_learning_byind01 ():
     cmat  = pm.gen_cmat(['a','an'], gram=2)
     smat  = pm.gen_mmat(pd.DataFrame({'Word':['a','an']}))
     events = [0, 1, 1]
@@ -205,6 +205,15 @@ def test_incremental_learning_byind ():
     fmat0_feature_values = ['Word:a', 'Word:an']
     fmat0 = xr.DataArray(np.array(fmat0_values).reshape(fmat0_shape), dims=fmat0_dims, coords={'cues':fmat0_cues_values, 'feature':fmat0_feature_values})
     assert fmat_test.identical(fmat0)
+
+def test_incremental_learning_byind02 ():
+    cmat  = pm.gen_cmat(['a','an'], gram=2)
+    smat  = pm.gen_mmat(pd.DataFrame({'Word':['a','an']}))
+    events_byind = [0, 1, 1]
+    events       = ['a', 'an', 'an']
+    fmat_byind_test = pm.incremental_learning_byind(events_byind, cmat, smat)
+    fmat_test       = pm.incremental_learning(events, cmat, smat)
+    assert fmat_test.identical(fmat_byind_test)
 
 def test_weight_by_freq ():
     words  = ['as','bs','bd']
