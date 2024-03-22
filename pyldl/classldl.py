@@ -1,4 +1,5 @@
 import pyldl.mapping as lm
+import pandas as pd
 
 class LDL:
     def __init__ (self, words=None, embed=None, noise=False, events=None):
@@ -14,10 +15,13 @@ class LDL:
         self.cmat = lm.gen_cmat(self.words, noise=noise)
         return None
 
-    def gen_smat(self, embed, words=None, noise=False):
+    def gen_smat (self, embed_or_df, words=None, noise=False):
         if not (words is None):
             self.words = words
-        self.smat = lm.gen_smat(self.words, embed, noise=noise)
+        if isinstance(embed_or_df, pd.core.frame.DataFrame):
+            self.smat = lm.gen_smat_from_df(embed_or_df, noise=noise)
+        else:
+            self.smat = lm.gen_smat(self.words, embed_or_df, noise=noise)
         return None
 
     def gen_fmat (self, events=None):
