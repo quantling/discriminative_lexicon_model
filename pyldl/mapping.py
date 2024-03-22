@@ -111,6 +111,23 @@ def gen_smat (words, embed, noise=0):
     assert (np.array(words) == smat.word.values).all()
     return smat
 
+def gen_smat_from_df (df):
+    """
+    Converts a pandas dataframe to an S-matrix. The input dataframe (i.e., df) must have indices and columns. Indices and columns of the dataframe are expected to be words and semantic dimensions respectively. They will be used as coordinates of the output xarray.
+
+    Parameters
+    ----------
+    df : pandas.core.frame.DataFrame
+        It must have indices (words) and columns (semantic dimensions).
+
+    Returns
+    -------
+    smat : xarray.core.dataarray.DataArray
+        It has indices of the input dataframe as words (the first dimension) and columns of the input dataframe as semantic dimensions (the second dimension). The values of the matrix will be the same as it looks in df.
+    """
+    smat = xr.DataArray(df.to_numpy(), dims=('word', 'semantics'), coords={'word':df.index, 'semantics':df.columns})
+    return smat
+
 def gen_smat_sim (infl, form=None, sep=None, dim_size=5, mn=0, sd=1, include_form=True, differentiate_duplicates=False, seed=None):
     mmat = gen_mmat(infl, form, sep, include_form, differentiate_duplicates)
     jmat = gen_jmat(mmat, dim_size, mn, sd, seed)

@@ -57,6 +57,17 @@ def test_gen_cmat (gram, count, noise):
     assert cmat_test.identical(cmat0)
 
 
+def test_df_to_smat ():
+    words = ['ban','banban','banbanban']
+    df = pd.DataFrame({'ban':[1, 1, 1], 'intensity':[1, 2, 3]}, index=words)
+    smat_test = pm.gen_smat_from_df(df)
+    smat0_shape = (3,2)
+    smat0_values = np.array([1,1,1,2,1,3]).reshape(smat0_shape)
+    smat0_dims = ('word','semantics')
+    smat0 = xr.DataArray(smat0_values, dims=smat0_dims, coords={'word':words, 'semantics':['ban','intensity']})
+    assert smat0.identical(smat_test)
+
+
 frms = [None, 'word', 'lemma']
 seps = [None, '/']
 dims = [3, 5]
