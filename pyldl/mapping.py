@@ -12,7 +12,7 @@ def to_cues (words, gram=3):
     cues = [ [ i[j:(j+gram)] for j in range(len(i)-(gram-1)) ] for i in words ]
     cues = [ [ j for j in i if not (' ' in j) ] for i in cues ]
     cues = [ j for i in cues for j in i ]
-    cues = sorted(list(set(cues)))
+    cues = list(dict.fromkeys(cues))
     return cues
 
 def gen_vmat (words, gram=3):

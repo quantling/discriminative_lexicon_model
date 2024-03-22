@@ -241,8 +241,13 @@ def test_weight_by_freq ():
 def test_gen_vmat ():
     words = ['abx', 'aby']
     vmat_test = pm.gen_vmat(words)
-    vmat = [False, True, True, False, False, False, False, False, True, False, False, False, False, False, True, False, False, False, False, False, False, False, False, False, False, True, False, False, False, False]
-    vmat = np.array(vmat).reshape(6,5)
-    vmat = xr.DataArray(vmat, dims=('current', 'next'), coords={'current':['#ab', 'abx', 'aby', 'bx#', 'by#', ''], 'next':['#ab', 'abx', 'aby', 'bx#', 'by#']})
-    assert vmat.identical(vmat_test)
+
+    vmat0_shape = (6,5)
+    vmat0_values = [False, True, False, True, False, False, False, True, False, False, False, False, False, False, False, False, False, False, False, True, False, False, False, False, False, True, False, False, False, False]
+    vmat0_values = np.array(vmat0_values).reshape(vmat0_shape)
+    vmat0_dims = ('current','next')
+    vmat0_current_values = ['#ab', 'abx', 'bx#', 'aby', 'by#', '']
+    vmat0_next_values = ['#ab', 'abx', 'bx#', 'aby', 'by#']
+    vmat0 = xr.DataArray(vmat0_values, dims=vmat0_dims, coords={'current':vmat0_current_values, 'next':vmat0_next_values})
+    assert vmat0.identical(vmat_test)
 
