@@ -193,6 +193,19 @@ def test_incremental_learning03 ():
     ok2   = fmats[2].round(15).identical(gold2)
     assert (ok0 and ok1) and ok2
 
+def test_incremental_learning_byind ():
+    cmat  = pm.gen_cmat(['a','an'], gram=2)
+    smat  = pm.gen_mmat(pd.DataFrame({'Word':['a','an']}))
+    events = [0, 1, 1]
+    fmat_test = pm.incremental_learning_byind(events, cmat, smat)
+    fmat0_values = [0.083, 0.16999999999999998, 0.1, 0.0, -0.017, 0.16999999999999998, -0.017, 0.16999999999999998]
+    fmat0_shape = (4, 2)
+    fmat0_dims = ('cues', 'feature')
+    fmat0_cues_values = ['#a', 'a#', 'an', 'n#']
+    fmat0_feature_values = ['Word:a', 'Word:an']
+    fmat0 = xr.DataArray(np.array(fmat0_values).reshape(fmat0_shape), dims=fmat0_dims, coords={'cues':fmat0_cues_values, 'feature':fmat0_feature_values})
+    assert fmat_test.identical(fmat0)
+
 def test_weight_by_freq ():
     words  = ['as','bs','bd']
     freqs  = [298, 1, 1]
