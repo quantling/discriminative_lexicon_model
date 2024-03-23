@@ -3,11 +3,16 @@ import pandas as pd
 import numpy as np
 
 class LDL:
-    def __init__ (self, words=None, embed_or_df=None, noise=False, events=None):
-        if (not words is None) and (not embed_or_df is None):
-            self.gen_all_matrices(words, embed_or_df, noise=noise, events=events)
-        else:
-            pass
+    def __init__ (self, words=None, embed_or_df=None, cmat=False, smat=False,
+            fmat=False, gmat=False, vmat=False, chat=False, shat=False,
+            allmatrices=False, noise=False, events=None):
+        if not (words is None):
+            self.words = words
+        if (any([cmat, smat, fmat, gmat, vmat, chat, shat])) or allmatrices:
+            self.gen_matrices(words=words, embed_or_df=embed_or_df, cmat=cmat,
+                    smat=smat, fmat=fmat, gmat=gmat, vmat=vmat, chat=chat,
+                    shat=shat, allmatrices=allmatrices, noise=noise,
+                    events=events)
         return None
 
     def gen_cmat (self, words=None, noise=False):
@@ -53,12 +58,29 @@ class LDL:
         self.vmat = lm.gen_vmat(self.words)
         return None
 
-    def gen_all_matrices (self, words, embed_or_df, noise=False, events=None):
-        self.gen_cmat(words=words, noise=noise)
-        self.gen_smat(embed_or_df=embed_or_df, words=None, noise=noise)
-        self.gen_fmat(events)
-        self.gen_gmat(events)
-        self.gen_vmat(words=None)
+    def gen_shat (self):
+        self.shat = lm.gen_shat(cmat=self.cmat, fmat=self.fmat)
+        return None
+
+    def gen_chat (self):
+        self.chat = lm.gen_chat(smat=self.smat, gmat=self.gmat)
+        return None
+
+    def gen_matrices (self, words=None, embed_or_df=None, cmat=True, smat=True, fmat=True, gmat=True, vmat=True, chat=True, shat=True, allmatrices=True, noise=False, events=None):
+        if cmat or allmatrices:
+            self.gen_cmat(words=words, noise=noise)
+        if smat or allmatrices:
+            self.gen_smat(embed_or_df=embed_or_df, words=words, noise=noise)
+        if fmat or allmatrices:
+            self.gen_fmat(events=events)
+        if gmat or allmatrices:
+            self.gen_gmat(events=events)
+        if vmat or allmatrices:
+            self.gen_vmat(words=words)
+        if chat or allmatrices:
+            self.gen_chat()
+        if shat or allmatrices:
+            self.gen_shat()
         return None
 
     def produce (self, gold, word=False, roundby=10, max_attempt=50, positive=False):
