@@ -12,6 +12,7 @@ TEST_ROOT = Path('.')
 RESOURCES = TEST_ROOT / 'resources'
 
 words = ['ban','banban']
+freqs = [10, 20]
 semdf = pd.DataFrame({'hit':[1,1], 'intensity':[1,2]}, index=words)
 
 cmat_shape = (2, 5)
@@ -21,12 +22,26 @@ cmat_word_values = ['ban', 'banban']
 cmat_cues_values = ['#ba', 'ban', 'an#', 'anb', 'nba']
 cmat = xr.DataArray(cmat_values, dims=cmat_dims, coords={cmat_dims[0]: cmat_word_values, cmat_dims[1]:cmat_cues_values})
 
+cmatfreq_shape = (2, 5)
+cmatfreq_values = np.array([0.7071067811865476, 0.7071067811865476, 0.7071067811865476, 0.0, 0.0, 1.0, 2.0, 1.0, 1.0, 1.0]).reshape(cmatfreq_shape)
+cmatfreq_dims = ('word', 'cues')
+cmatfreq_word_values = ['ban', 'banban']
+cmatfreq_cues_values = ['#ba', 'ban', 'an#', 'anb', 'nba']
+cmatfreq = xr.DataArray(cmatfreq_values, dims=cmatfreq_dims, coords={cmatfreq_dims[0]: cmatfreq_word_values, cmatfreq_dims[1]:cmatfreq_cues_values})
+
 smat_shape = (2, 2)
 smat_values = np.array([1, 1, 1, 2]).reshape(smat_shape)
 smat_dims = ('word', 'semantics')
 smat_word_values = ['ban', 'banban']
 smat_semantics_values = ['hit', 'intensity']
 smat = xr.DataArray(smat_values, dims=smat_dims, coords={smat_dims[0]: smat_word_values, smat_dims[1]:smat_semantics_values})
+
+smatfreq_shape = (2, 2)
+smatfreq_values = np.array([0.7071067811865476, 0.7071067811865476, 1.0, 2.0]).reshape(smatfreq_shape)
+smatfreq_dims = ('word', 'semantics')
+smatfreq_word_values = ['ban', 'banban']
+smatfreq_semantics_values = ['hit', 'intensity']
+smatfreq = xr.DataArray(smatfreq_values, dims=smatfreq_dims, coords={smatfreq_dims[0]: smatfreq_word_values, smatfreq_dims[1]:smatfreq_semantics_values})
 
 fmat_shape = (5, 2)
 fmat_values = np.array([0.37500000000000006, 0.2499999999999999, 0.25000000000000006, 0.4999999999999999, 0.37499999999999967, 0.24999999999999994, -0.125, 0.2499999999999999, -0.125, 0.2499999999999999]).reshape(fmat_shape)
@@ -81,3 +96,22 @@ def test_initialize_with_matrices ():
     assert ldl.shat.identical(shat)
     assert ldl.chat.identical(chat)
 
+def test_gen_cmat ():
+    ldl = LDL()
+    ldl.gen_cmat(words=words)
+    assert ldl.cmat.identical(cmat)
+
+def test_gen_cmat_withfreq ():
+    ldl = LDL()
+    ldl.gen_cmat(words=words, freqs=freqs)
+    assert ldl.cmat.identical(cmatfreq)
+
+def test_gen_smat ():
+    ldl = LDL()
+    ldl.gen_smat(embed_or_df=semdf, words=words)
+    assert ldl.smat.identical(smat)
+
+def test_gen_smat_withfreq ():
+    ldl = LDL()
+    ldl.gen_smat(embed_or_df=semdf, words=words, freqs=freqs)
+    assert ldl.smat.identical(smatfreq)

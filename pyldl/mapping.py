@@ -49,7 +49,7 @@ def _cue_exist (x):
     i,j = x
     return j in '#'+i+'#'
 
-def gen_cmat (words, gram=3, count=True, noise=0, randseed=None, differentiate_duplicates=False):
+def gen_cmat (words, gram=3, count=True, noise=0, freqs=None, randseed=None, differentiate_duplicates=False):
     cues = unique_cues(words, gram=gram)
     cuelen = list(set([ len(i) for i in cues ]))
     if len(cuelen)!=1:
@@ -70,6 +70,8 @@ def gen_cmat (words, gram=3, count=True, noise=0, randseed=None, differentiate_d
         else:
             rng = np.random.default_rng(randseed)
             cmat = cmat + rng.normal(scale=noise, size=cmat.shape)
+    if not (freqs is None):
+        cmat = weight_by_freq(cmat, freqs)
     assert (np.array(words) == cmat.word.values).all()
     return cmat
 
@@ -84,22 +86,39 @@ def _differentiate_duplicates (words):
     uniqs.loc[non_dup_pos] = pd.Series(words).loc[non_dup_pos]
     return uniqs.to_list()
 
-def gen_smat (words, embed, noise=0, randseed=None):
+def gen_smat (words, embed, noise=0, freqs=None, randseed=None):
     """
     Parameters
     ----------
-    words: list-like
-        A list-like object of words for these semantic vectors will be retrieved.
-    embed: fasttext.FastText._FastText
-        A fasttext pre-trained model, which is assumed to be loaded by fasttext.load_model.
-    noise: int or bool
-        If it is 0, no random noise will be added to elements of the S-matrix to be produced. If it is greater than 0, it will be used as a scale (standard deviation) parameter to generate normally-distributed random numbers, which will be added to the S-matrix to be produced. If noise=True, noise=0.1 will be used. if noise=False, no noise will be added.
+    words : list-like
+        A list-like object of words for these semantic vectors will be
+        retrieved.
+    embed : fasttext.FastText._FastText
+        A fasttext pre-trained model, which is assumed to be loaded by
+        fasttext.load_model.
+    noise : int or bool
+        If it is 0, no random noise will be added to elements of the S-matrix
+        to be produced. If it is greater than 0, it will be used as a scale
+        (standard deviation) parameter to generate normally-distributed random
+        numbers, which will be added to the S-matrix to be produced. If
+        noise=True, noise=0.1 will be used. if noise=False, no noise will be
+        added.
+    freqs : list-like
+        A list of frequency of the words. The S-matrix to be generated will be
+        weighted by these frequency values (i.e., frequency-weighted learning).
+    randseed : None or int
+        This option will have an effect only when noise > 0. If randseed is
+        None, a random sequence of numbers will be added to the S-matrix to be
+        produced (i.e., irreproducible). If randseed is an integer value, the
+        random seed will be used, namely which will be reproducible with the
+        same random seed later.
     """
     if not isinstance(embed, ft.FastText._FastText):
         raise TypeError('Embeddings (the first argument, "embed") must be a fasttext object (i.e., fasttext.FastText._FastText).')
     smat = np.array([ embed.get_word_vector(i) for i in words ])
     sems  = [ 'S{:03d}'.format(i) for i in range(smat.shape[1]) ]
-    smat = xr.DataArray(smat, dims=('word', 'semantics'), coords={'word':words, 'semantics':sems})
+    smat = xr.DataArray(smat, dims=('word', 'semantics'), coords={'word':words,
+        'semantics':sems})
     if noise:
         if isinstance(noise, bool):
             noise = 0.1
@@ -108,24 +127,49 @@ def gen_smat (words, embed, noise=0, randseed=None):
         else:
             rng = np.random.default_rng(randseed)
             smat = smat + rng.normal(scale=noise, size=smat.shape)
+    if not (freqs is None):
+        smat = weight_by_freq(smat, freqs)
     assert (np.array(words) == smat.word.values).all()
     return smat
 
-def gen_smat_from_df (df, noise=0, randseed=None):
+def gen_smat_from_df (df, noise=0, freqs=None, randseed=None):
     """
-    Converts a pandas dataframe to an S-matrix. The input dataframe (i.e., df) must have indices and columns. Indices and columns of the dataframe are expected to be words and semantic dimensions respectively. They will be used as coordinates of the output xarray.
+    Converts a pandas dataframe to an S-matrix. The input dataframe (i.e., df)
+    must have indices and columns. Indices and columns of the dataframe are
+    expected to be words and semantic dimensions respectively. They will be
+    used as coordinates of the output xarray.
 
     Parameters
     ----------
     df : pandas.core.frame.DataFrame
         It must have indices (words) and columns (semantic dimensions).
+    noise : int or bool
+        If it is 0, no random noise will be added to elements of the S-matrix
+        to be produced. If it is greater than 0, it will be used as a scale
+        (standard deviation) parameter to generate normally-distributed random
+        numbers, which will be added to the S-matrix to be produced. If
+        noise=True, noise=0.1 will be used. if noise=False, no noise will be
+        added.
+    freqs : list-like
+        A list of frequency of the words. The S-matrix to be generated will be
+        weighted by these frequency values (i.e., frequency-weighted learning).
+    randseed : None or int
+        This option will have an effect only when noise > 0. If randseed is
+        None, a random sequence of numbers will be added to the S-matrix to be
+        produced (i.e., irreproducible). If randseed is an integer value, the
+        random seed will be used, namely which will be reproducible with the
+        same random seed later.
 
     Returns
     -------
     smat : xarray.core.dataarray.DataArray
-        It has indices of the input dataframe as words (the first dimension) and columns of the input dataframe as semantic dimensions (the second dimension). The values of the matrix will be the same as it looks in df.
+        It has indices of the input dataframe as words (the first dimension)
+        and columns of the input dataframe as semantic dimensions (the second
+        dimension). The values of the matrix will be the same as it looks in
+        df.
     """
-    smat = xr.DataArray(df.to_numpy(), dims=('word', 'semantics'), coords={'word':df.index, 'semantics':df.columns})
+    smat = xr.DataArray(df.to_numpy(), dims=('word', 'semantics'),
+            coords={'word':df.index, 'semantics':df.columns})
     if noise:
         if isinstance(noise, bool):
             noise = 0.1
@@ -134,6 +178,8 @@ def gen_smat_from_df (df, noise=0, randseed=None):
         else:
             rng = np.random.default_rng(randseed)
             smat = smat + rng.normal(scale=noise, size=smat.shape)
+    if not (freqs is None):
+        smat = weight_by_freq(smat, freqs)
     return smat
 
 def gen_smat_sim (infl, form=None, sep=None, dim_size=5, mn=0, sd=1, include_form=True, differentiate_duplicates=False, seed=None):

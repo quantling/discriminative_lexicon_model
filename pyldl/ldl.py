@@ -5,29 +5,29 @@ import numpy as np
 class LDL:
     def __init__ (self, words=None, embed_or_df=None, cmat=False, smat=False,
             fmat=False, gmat=False, vmat=False, chat=False, shat=False,
-            allmatrices=False, noise=False, events=None):
+            allmatrices=False, noise=False, events=None, freqs=None):
         if not (words is None):
             self.words = words
         if (any([cmat, smat, fmat, gmat, vmat, chat, shat])) or allmatrices:
             self.gen_matrices(words=words, embed_or_df=embed_or_df, cmat=cmat,
                     smat=smat, fmat=fmat, gmat=gmat, vmat=vmat, chat=chat,
                     shat=shat, allmatrices=allmatrices, noise=noise,
-                    events=events)
+                    events=events, freqs=freqs)
         return None
 
-    def gen_cmat (self, words=None, noise=False):
+    def gen_cmat (self, words=None, noise=False, freqs=None):
         if not (words is None):
             self.words = words
-        self.cmat = lm.gen_cmat(self.words, noise=noise)
+        self.cmat = lm.gen_cmat(self.words, noise=noise, freqs=freqs)
         return None
 
-    def gen_smat (self, embed_or_df, words=None, noise=False):
+    def gen_smat (self, embed_or_df, words=None, noise=False, freqs=None):
         if not (words is None):
             self.words = words
         if isinstance(embed_or_df, pd.core.frame.DataFrame):
-            self.smat = lm.gen_smat_from_df(embed_or_df, noise=noise)
+            self.smat = lm.gen_smat_from_df(embed_or_df, noise=noise, freqs=freqs)
         else:
-            self.smat = lm.gen_smat(self.words, embed_or_df, noise=noise)
+            self.smat = lm.gen_smat(self.words, embed_or_df, noise=noise, freqs=freqs)
         return None
 
     def gen_fmat (self, events=None):
@@ -66,11 +66,11 @@ class LDL:
         self.chat = lm.gen_chat(smat=self.smat, gmat=self.gmat)
         return None
 
-    def gen_matrices (self, words=None, embed_or_df=None, cmat=True, smat=True, fmat=True, gmat=True, vmat=True, chat=True, shat=True, allmatrices=True, noise=False, events=None):
+    def gen_matrices (self, words=None, embed_or_df=None, cmat=True, smat=True, fmat=True, gmat=True, vmat=True, chat=True, shat=True, allmatrices=True, noise=False, events=None, freqs=None):
         if cmat or allmatrices:
-            self.gen_cmat(words=words, noise=noise)
+            self.gen_cmat(words=words, noise=noise, freqs=freqs)
         if smat or allmatrices:
-            self.gen_smat(embed_or_df=embed_or_df, words=words, noise=noise)
+            self.gen_smat(embed_or_df=embed_or_df, words=words, noise=noise, freqs=freqs)
         if fmat or allmatrices:
             self.gen_fmat(events=events)
         if gmat or allmatrices:
