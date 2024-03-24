@@ -5,6 +5,7 @@ from multiprocessing import Pool
 import pyldl.mapping as lmap
 from tqdm import tqdm
 import fasttext as ft
+from pathlib import Path
 
 def to_cues (words, gram=3):
     words = [ '#' + i + '#'for i in words ]
@@ -430,4 +431,121 @@ def weight_by_freq (mat, freqs):
     else:
         mat = np.matmul(freqs, mat)
     return mat
+
+def save_mat_as_csv (mat, directory='.', stem='mat', add=''):
+    """
+    Saves an LDL matrix (e.g., C-mat) in csv files. An array/matrix can be
+    saved with its attributes altogether, using for example netCDF. However, it
+    can sometimes create a problem in saving and loading across different
+    environments. Therefore, this function saves an array/matrix and its values
+    in separate csv files, so that they can be opened, edited, and loaded
+    easily in any environment.
+
+    Parameters
+    ----------
+    mat : xarray.core.dataarray.DataArray
+        An LDL matrix to be saved.
+    directory : str
+        A path to the directory, in which the matrix (and its attributes) will
+        be saved (e.g., '/home/username')
+    stem : str
+        The stem part of the filenames of the saved csv files. For example,
+        stem='foobar' will create four csv files, namely 'foobar_main.csv' for
+        the values of the matrix, 'foobar_xxx.csv' for the values of the first
+        dimension named 'xxx', 'foobar_yyy_csv' for the values of the second
+        dimension named 'yyy', and 'foobar_meta.csv' for the number of the
+        dimensions of the matrix.
+    add : str
+        An additional string, which will be attached to the end of the stem of
+        the filename. For example, add='_X' together with stem='foobar' will
+        create 'foobar_main_X.csv', 'foobar_xxx_X.csv' where 'xxx' is the name
+        of the first dimension of the matrix to be saved, 'foobar_yyy_X.csv'
+        where 'yyy' is the name of the second dimension of the matrix to be
+        saved, and 'foobar_meta_X.csv'.
+    """
+    suffix = '.csv'
+    name_main = 'main'
+    name_meta = 'meta'
+    name_dim0 = mat.dims[0]
+    name_dim1 = mat.dims[1]
+    path_main = '{}/{}_{}{}{}'.format(directory, stem, name_main, add, suffix)
+    path_meta = '{}/{}_{}{}{}'.format(directory, stem, name_meta, add, suffix)
+    path_dim0 = '{}/{}_{}{}{}'.format(directory, stem, name_dim0, add, suffix)
+    path_dim1 = '{}/{}_{}{}{}'.format(directory, stem, name_dim1, add, suffix)
+    vals_main = mat.values
+    vals_meta = np.array(mat.dims)
+    vals_dim0 = mat[name_dim0].values
+    vals_dim1 = mat[name_dim1].values
+    np.savetxt(path_main, vals_main, delimiter='\t', comments=None)
+    np.savetxt(path_meta, vals_meta, fmt='%s', delimiter='\t', comments=None)
+    np.savetxt(path_dim0, vals_dim0, fmt='%s', delimiter='\t', comments=None)
+    np.savetxt(path_dim1, vals_dim1, fmt='%s', delimiter='\t', comments=None)
+    return None
+
+def load_mat_from_csv (directory, stem, add=''):
+    """
+    Loads the csv files that are assumed to have been saved by save_mat_as_csv.
+
+    Parameters
+    ----------
+    directory : str
+        A path to the directory, in which the csv files to be loaded are
+        located.
+    stem : str
+        The stem of the filenames of the csv files to be loaded. For example,
+        stem='foobar' will load 'foobar_main.csv', 'foobar_xxx.csv' (where
+        'xxx' is the name of the first dimension), 'foobar_yyy.csv' (where
+        'yyy' is the name of the second dimension), and 'foobar_meta.csv'.
+    add : str
+        An additional string, which will be attached to the ends of the stems
+        of the filenames. For example, add='_X' with stem='foobar' will load
+        the files 'foobar_main_X.csv', 'foobar_xxx_X.csv' where 'xxx' is the
+        name of the first dimension, 'foobar_yyy_X.csv' where 'yyy' is the name
+        of the second dimension, and 'foobar_meta_X.csv'.
+
+    Returns
+    -------
+    mat : xarray.core.dataarray.DataArray
+        An xarray matrix, reconstructed from the csv files being loaded.
+    """
+    suffix = '.csv'
+    name_main = 'main'
+    name_meta = 'meta'
+    path_main = '{}/{}_{}{}{}'.format(directory, stem, name_main, add, suffix)
+    path_meta = '{}/{}_{}{}{}'.format(directory, stem, name_meta, add, suffix)
+    vals_meta = np.loadtxt(path_meta, dtype=str, delimiter='\t', comments=None)
+    name_dim0 = vals_meta[0]
+    name_dim1 = vals_meta[1]
+    path_dim0 = '{}/{}_{}{}{}'.format(directory, stem, name_dim0, add, suffix)
+    path_dim1 = '{}/{}_{}{}{}'.format(directory, stem, name_dim1, add, suffix)
+    vals_main = np.loadtxt(path_main, delimiter='\t', comments=None)
+    vals_dim0 = load_csv(path_dim0)
+    vals_dim1 = load_csv(path_dim1)
+    mat = xr.DataArray(vals_main, dims=vals_meta, coords={name_dim0: vals_dim0, name_dim1: vals_dim1})
+    return mat
+
+def load_csv (path):
+    """
+    This function simply loads a csv file, including empty lines, which is
+    important for a V-matrix. Including empty lines was a bit cumbersome with
+    numpy.loadtxt and pandas.read_csv, and using them would be an overkill just
+    to load a simple one-column vector anyways. Therefore, this function was
+    created.
+
+    Parameters
+    ----------
+    path : str
+        A path to the csv file to be loaded.
+
+    Returns
+    -------
+    csv : list
+        A list of dimension values.
+    """
+    with open(path, 'r') as f:
+        csv = f.readlines()
+    csv = [ i.rstrip('\n') for i in csv ]
+    return csv
+
+
 

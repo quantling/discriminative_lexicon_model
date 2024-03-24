@@ -115,6 +115,19 @@ class LDL:
             df = concat_cues(df.Selected)
         return df
 
+    def save_matrices (self, directory, add=''):
+        mats = ['cmat','smat','fmat','gmat','vmat','shat','chat']
+        for i in mats:
+            lm.save_mat_as_csv(getattr(self, i), directory=directory, stem=i, add=add)
+        return None
+
+    def load_matrices (self, directory, add=''):
+        mats = ['cmat','smat','fmat','gmat','vmat','shat','chat']
+        for i in mats:
+            mat = lm.load_mat_from_csv(directory=directory, stem=i, add=add)
+            setattr(self, i, mat)
+        return None
+
 def concat_cues (a):
     assert is_consecutive(a)
     a = pd.Series(a).str.slice(start=0, stop=1).iloc[:-1].str.cat(sep='') + pd.Series(a).iloc[-1]
