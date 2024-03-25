@@ -105,7 +105,7 @@ class LDL:
                 c_comp[p] = c_comp[p] + 1
                 xs = xs + [self.cmat.cues.values[p]]
                 vecs = vecs + [c_prod.round(roundby)]
-            if i==(max_attempt-1):
+            if (xs[-1][-1] == '#') or (i==(max_attempt-1)):
                 print('The maximum number of iterations ({:d}) reached.'.format(max_attempt))
                 break
         df = pd.DataFrame(vecs).rename(columns={ i:j for i,j in enumerate(self.cmat.cues.values) })
