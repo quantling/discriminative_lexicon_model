@@ -15,10 +15,10 @@ class LDL:
                     events=events, freqs=freqs)
         return None
 
-    def gen_cmat (self, words=None, noise=False, freqs=None):
+    def gen_cmat (self, words=None, gram=3, noise=False, freqs=None):
         if not (words is None):
             self.words = words
-        self.cmat = lm.gen_cmat(self.words, noise=noise, freqs=freqs)
+        self.cmat = lm.gen_cmat(self.words, gram=gram, noise=noise, freqs=freqs)
         return None
 
     def gen_smat (self, embed_or_df, words=None, noise=False, freqs=None):
