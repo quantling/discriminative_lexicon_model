@@ -47,9 +47,9 @@ class LDL:
         else:
             isind = all([ isinstance(i, int) for i in events ])
             if isind:
-                self.gmat = lm.incremental_learning_byind(events, self.cmat, self.smat)
+                self.gmat = lm.incremental_learning_byind(events, self.smat, self.cmat)
             else:
-                self.gmat = lm.incremental_learning(events, self.cmat, self.smat)
+                self.gmat = lm.incremental_learning(events, self.smat, self.cmat)
         return None
 
     def gen_vmat (self, words=None):
