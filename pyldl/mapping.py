@@ -125,7 +125,7 @@ def gen_cmat_from_df (df, noise=0, freqs=None, randseed=None):
         df.
     """
     cmat = xr.DataArray(df.to_numpy(), dims=('word', 'cues'),
-            coords={'word':df.index, 'cues':df.columns})
+            coords={'word':df.index.tolist(), 'cues':df.columns})
     if noise:
         if isinstance(noise, bool):
             noise = 0.1
@@ -221,7 +221,7 @@ def gen_smat_from_df (df, noise=0, freqs=None, randseed=None):
         df.
     """
     smat = xr.DataArray(df.to_numpy(), dims=('word', 'semantics'),
-            coords={'word':df.index, 'semantics':df.columns})
+            coords={'word':df.index.tolist(), 'semantics':df.columns})
     if noise:
         if isinstance(noise, bool):
             noise = 0.1
