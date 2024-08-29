@@ -87,6 +87,57 @@ def _differentiate_duplicates (words):
     uniqs.loc[non_dup_pos] = pd.Series(words).loc[non_dup_pos]
     return uniqs.to_list()
 
+def gen_cmat_from_df (df, noise=0, freqs=None, randseed=None):
+    """
+    Converts a pandas dataframe to a C-matrix. The input dataframe (i.e., df)
+    must have indices and columns. Indices and columns of the dataframe are
+    expected to be words and form dimensions (possibly sublexical forms such as
+    trigrams) respectively. They will be used as coordinates of the output
+    xarray.
+
+    Parameters
+    ----------
+    df : pandas.core.frame.DataFrame
+        It must have indices (words) and columns (form dimensions).
+    noise : int or bool
+        If it is 0, no random noise will be added to elements of the C-matrix
+        to be produced. If it is greater than 0, it will be used as a scale
+        (standard deviation) parameter to generate normally-distributed random
+        numbers, which will be added to the C-matrix to be produced. If
+        noise=True, noise=0.1 will be used. if noise=False, no noise will be
+        added.
+    freqs : list-like
+        A list of frequency of the words. The C-matrix to be generated will be
+        weighted by these frequency values (i.e., frequency-weighted learning).
+    randseed : None or int
+        This option will have an effect only when noise > 0. If randseed is
+        None, a random sequence of numbers will be added to the C-matrix to be
+        produced (i.e., irreproducible). If randseed is an integer value, the
+        random seed will be used, namely which will be reproducible with the
+        same random seed later.
+
+    Returns
+    -------
+    cmat : xarray.core.dataarray.DataArray
+        It has indices of the input dataframe as words (the first dimension)
+        and columns of the input dataframe as form dimensions (the second
+        dimension). The values of the matrix will be the same as it looks in
+        df.
+    """
+    cmat = xr.DataArray(df.to_numpy(), dims=('word', 'cues'),
+            coords={'word':df.index, 'cues':df.columns})
+    if noise:
+        if isinstance(noise, bool):
+            noise = 0.1
+        if randseed is None:
+            cmat = cmat + np.random.normal(scale=noise, size=cmat.shape)
+        else:
+            rng = np.random.default_rng(randseed)
+            cmat = cmat + rng.normal(scale=noise, size=cmat.shape)
+    if not (freqs is None):
+        cmat = weight_by_freq(cmat, freqs)
+    return cmat
+
 def gen_smat (words, embed, noise=0, freqs=None, randseed=None):
     """
     Parameters
