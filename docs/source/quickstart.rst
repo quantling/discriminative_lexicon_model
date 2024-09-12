@@ -2,167 +2,153 @@
 Quickstart
 ==========
 
-In the following, I will describe the basic usage of pyldl. For more details about Linear Discriminative Learning, see the section :ref:`Linear Discriminative Learning`.
+*discriminative_lexicon_model* is a python-implementation of Discriminative Lexicon Model [1]_.
 
 Installation
 ============
 
-*pyldl* is not available on PyPI yet. So, you need to clone it before installing it locally.
+*discriminative_lexicon_model* is available on PyPI.
 
 .. code:: bash
 
-    git clone https://github.com/msaito8623/pyldl
-    pip install -e /path/to/the/repo
+    pip install --user discriminative_lexicon_model
 
 
+Quick overview of the theory "Discriminative Lexicon Model (DLM)"
+=================================================================
 
-Train an Linear Discriminative Learning model
-=============================================
+In DLM, language processing is modelled as linear mappings between word-forms and word-meanings. Word-forms and word-meanings can be defined in any way, as long as each word form/meaning is expressed in the form of a vector (i.e., an array of numbers). Word-forms are stacked up to be a matrix called the *C* matrix. Word-meanings are stacked up to be another matrix called the *S* matrix. The comprehension process can be modelled as receiving word-forms (i.e., C) and predicting word-meanings (i.e., S). Such a matrix that approximates S as closely as possible based on C can be estimated either analytically or computationally (see [1]_ for more detail), and it is called the *F* matrix. With C and F, the approximation (prediction) of S can be derived, and it is called the :math:`\hat{S}` matrix. Similarly, the production process can be modelled as receiving word-meanings (i.e., S) and predicting word-forms (i.e., C). Such a matrix that approximates C based on S is called the *G* matrix. With S and G, the model's predictions about word-forms are obtained as yet another matrix. The matrix is called the :math:`\hat{C}` matrix. It is shown below how to set up and estimate these matrices.
 
+
+Set up the basis matrices C and S
+=================================
 
 C-matrix
 --------
 
-You can create a C-matrix from a list of words by using pyldl.mapping.gen_cmat.
+The C matrix is a collection of form-vectors of words. You can create a C-matrix from a list of words by using discriminative_lexicon_model.mapping.gen_cmat.
 
 .. code-block:: python
 
-    >>> import pyldl.mapping as pmap
+    >>> import discriminative_lexicon_model as dlm
     >>> words = ['walk','walked','walks']
-    >>> cmat  = pmap.gen_cmat(words)
+    >>> cmat  = dlm.mapping.gen_cmat(words)
     >>> cmat
     <xarray.DataArray (word: 3, cues: 9)>
-    array([[ True,  True, False, False, False,  True, False, False,  True],
-           [ True,  True,  True,  True, False, False,  True, False,  True],
-           [ True,  True, False, False,  True, False, False,  True,  True]])
+    array([[1, 1, 1, 1, 0, 0, 0, 0, 0],
+           [1, 1, 1, 0, 1, 1, 1, 0, 0],
+           [1, 1, 1, 0, 0, 0, 0, 1, 1]])
     Coordinates:
       * word     (word) <U6 'walk' 'walked' 'walks'
-      * cues     (cues) <U3 '#wa' 'alk' 'ed#' 'ked' 'ks#' 'lk#' 'lke' 'lks' 'wal'
+      * cues     (cues) <U3 '#wa' 'wal' 'alk' 'lk#' 'lke' 'ked' 'ed#' 'lks' 'ks#'
 
 
 S-matrix
 --------
 
-An S-matrix by simulated semantic vectors [1]_ can be produced from a pandas dataframe that contains morphological information. This can be achieved in pyldl with pyldl.mapping.gen_smat_sim.
+The S matrix is a collection of semantic vectors of words. For one method, an S-matrix can be set up by defining semantic dimensions by hand. This can be achieved by discriminative_lexicon_model.mapping.gen_smat_from_df.
 
 
 .. code-block:: python
 
     >>> import pandas as pd
-    >>> infl = pd.DataFrame({'Word':['walk','walked','walks'], 'Lemma':['walk','walk','walk'], 'Tense':['PRES','PAST','PRES']})
-    >>> smat = pmap.gen_smat_sim(infl, dim_size=5)
-    >>> smat.round(2)
-    <xarray.DataArray (word: 3, semantics: 5)>
-    array([[ 0.75,  1.25,  0.39, -4.41, -0.12],
-           [-1.68,  0.6 , -0.  , -3.55, -2.23],
-           [-2.77,  0.71, -0.48, -2.76,  0.15]])
+    >>> smat = pd.DataFrame({'WALK':[1,1,1], 'Present':[1,0,1], 'Past':[0,1,0], 'ThirdPerson':[0,0,1]}, index=['walk','walked','walks'])
+    >>> smat = dlm.mapping.gen_smat_from_df(smat)
+    <xarray.DataArray (word: 3, semantics: 4)>
+    array([[1, 1, 0, 0],
+           [1, 0, 1, 0],
+           [1, 1, 0, 1]])
     Coordinates:
       * word       (word) <U6 'walk' 'walked' 'walks'
-      * semantics  (semantics) <U4 'S000' 'S001' 'S002' 'S003' 'S004'
+      * semantics  (semantics) object 'WALK' 'Present' 'Past' 'ThirdPerson'
 
+
+
+Estimation of the association matrices
+======================================
 
 F-matrix
 --------
 
-An F-matrix can be obtained with pyldl.mapping.gen_fmat.
+With C and S established, the comprehension association matrix F can be estimated by discriminative_lexicon_model.mapping.gen_fmat.
 
 .. code-block:: python
 
-    >>> fmat = pmap.gen_fmat(cmat, smat)
+    >>> fmat = dlm.mapping.gen_fmat(cmat, smat)
     >>> fmat.round(2)
-    <xarray.DataArray (cues: 9, semantics: 5)>
-    array([[-0.  , -0.  , -0.  , -0.  , -0.  ],
-           [-0.  , -0.  , -0.  , -0.  , -0.  ],
-           [-0.56,  0.2 , -0.  , -1.18, -0.74],
-           [-0.56,  0.2 , -0.  , -1.18, -0.74],
-           [-1.39,  0.35, -0.24, -1.38,  0.07],
-           [ 0.75,  1.25,  0.39, -4.41, -0.12],
-           [-0.56,  0.2 , -0.  , -1.18, -0.74],
-           [-1.39,  0.35, -0.24, -1.38,  0.07],
-           [-0.  , -0.  , -0.  , -0.  , -0.  ]])
+    <xarray.DataArray (cues: 9, semantics: 4)>
+    array([[ 0.28,  0.23,  0.05,  0.08],
+           [ 0.28,  0.23,  0.05,  0.08],
+           [ 0.28,  0.23,  0.05,  0.08],
+           [ 0.15,  0.31, -0.15, -0.23],
+           [ 0.05, -0.23,  0.28, -0.08],
+           [ 0.05, -0.23,  0.28, -0.08],
+           [ 0.05, -0.23,  0.28, -0.08],
+           [ 0.08,  0.15, -0.08,  0.38],
+           [ 0.08,  0.15, -0.08,  0.38]])
     Coordinates:
-      * cues       (cues) <U3 '#wa' 'alk' 'ed#' 'ked' 'ks#' 'lk#' 'lke' 'lks' 'wal'
-      * semantics  (semantics) <U4 'S000' 'S001' 'S002' 'S003' 'S004'
+      * cues       (cues) <U3 '#wa' 'wal' 'alk' 'lk#' 'lke' 'ked' 'ed#' 'lks' 'ks#'
+      * semantics  (semantics) object 'WALK' 'Present' 'Past' 'ThirdPerson'
 
 
 G-matrix
 --------
 
-A G-matrix can be obtained with pyldl.mapping.gen_gmat.
+The production association matrix G can be obtained by discriminative_lexicon_model.mapping.gen_gmat.
 
 .. code-block:: python
 
-    >>> gmat = pmap.gen_gmat(cmat, smat)
+    >>> gmat = dlm.mapping.gen_gmat(cmat, smat)
     >>> gmat.round(2)
-    <xarray.DataArray (semantics: 5, cues: 9)>
-    array([[-0.11, -0.11, -0.03, -0.03, -0.27,  0.19, -0.03, -0.27, -0.11],
-           [ 0.06,  0.06, -0.06, -0.06,  0.05,  0.08, -0.06,  0.05,  0.06],
-           [-0.01, -0.01,  0.03,  0.03, -0.08,  0.04,  0.03, -0.08, -0.01],
-           [-0.23, -0.23, -0.01, -0.01, -0.05, -0.17, -0.01, -0.05, -0.23],
-           [ 0.02,  0.02, -0.43, -0.43,  0.29,  0.15, -0.43,  0.29,  0.02]])
+    <xarray.DataArray (semantics: 4, cues: 9)>
+    array([[ 0.67,  0.67,  0.67,  0.33,  0.33,  0.33,  0.33, -0.  , -0.  ],
+           [ 0.33,  0.33,  0.33,  0.67, -0.33, -0.33, -0.33, -0.  , -0.  ],
+           [ 0.33,  0.33,  0.33, -0.33,  0.67,  0.67,  0.67, -0.  , -0.  ],
+           [ 0.  ,  0.  ,  0.  , -1.  ,  0.  ,  0.  ,  0.  ,  1.  ,  1.  ]])
     Coordinates:
-      * semantics  (semantics) <U4 'S000' 'S001' 'S002' 'S003' 'S004'
-      * cues       (cues) <U3 '#wa' 'alk' 'ed#' 'ked' 'ks#' 'lk#' 'lke' 'lks' 'wal'
+      * semantics  (semantics) object 'WALK' 'Present' 'Past' 'ThirdPerson'
+      * cues       (cues) <U3 '#wa' 'wal' 'alk' 'lk#' 'lke' 'ked' 'ed#' 'lks' 'ks#'
 
 
-S-hat-matrix
+
+Prediction of the form and semantic matrices
+============================================
+
+S-hat matrix
 ------------
 
-An S-hat-matrix (:math:`\mathbf{\hat{S}}`), predicted semantic vectors based on forms, can be obtained with pyldl.mapping.gen_shat. You can produce an S-hat-matrix from a C-matrix and an F-matrix or from a C-matrix and an S-matrix without producing an F-matrix yourself.
+The S-hat matrix (:math:`\mathbf{\hat{S}}`) can be obtained by discriminative_lexicon_model.mapping.gen_shat.
 
 .. code-block:: python
 
-    >>> shat = pmap.gen_shat(cmat=cmat, fmat=fmat)
+    >>> shat = dlm.mapping.gen_shat(cmat, fmat)
     >>> shat.round(2)
-    <xarray.DataArray (word: 3, semantics: 5)>
-    array([[ 0.75,  1.25,  0.39, -4.41, -0.12],
-           [-1.68,  0.6 , -0.  , -3.55, -2.23],
-           [-2.77,  0.71, -0.48, -2.76,  0.15]])
+    <xarray.DataArray (word: 3, semantics: 4)>
+    array([[ 1.,  1., -0., -0.],
+           [ 1., -0.,  1., -0.],
+           [ 1.,  1., -0.,  1.]])
     Coordinates:
       * word       (word) <U6 'walk' 'walked' 'walks'
-      * semantics  (semantics) <U4 'S000' 'S001' 'S002' 'S003' 'S004'
-
-.. code-block:: python
-
-    >>> shat = pmap.gen_shat(cmat=cmat, smat=smat)
-    >>> shat.round(2)
-    <xarray.DataArray (word: 3, semantics: 5)>
-    array([[ 0.75,  1.25,  0.39, -4.41, -0.12],
-           [-1.68,  0.6 , -0.  , -3.55, -2.23],
-           [-2.77,  0.71, -0.48, -2.76,  0.15]])
-    Coordinates:
-      * word       (word) <U6 'walk' 'walked' 'walks'
-      * semantics  (semantics) <U4 'S000' 'S001' 'S002' 'S003' 'S004'
+      * semantics  (semantics) object 'WALK' 'Present' 'Past' 'ThirdPerson'
 
 
-C-hat-matrix
+C-hat matrix
 ------------
 
-A C-hat-matrix (:math:`\mathbf{\hat{C}}`), predicted form vectors based on semantics, can be obtained with pyldl.mapping.gen_chat. You can produce a C-hat-matrix from an S-matrix and a G-matrix or from an S-matrix and a C-matrix without producing a G-matrix yourself.
+The C-hat matrix (:math:`\mathbf{\hat{C}}`) can be obtained with discriminative_lexicon_model.mapping.gen_chat.
 
 .. code-block:: python
 
-    >>> chat = pmap.gen_chat(smat=smat, gmat=gmat)
+    >>> chat = dlm.mapping.gen_chat(smat, gmat)
     >>> chat.round(2)
     <xarray.DataArray (word: 3, cues: 9)>
-    array([[ 1.,  1.,  0.,  0., -0.,  1.,  0., -0.,  1.],
-           [ 1.,  1.,  1.,  1.,  0., -0.,  1.,  0.,  1.],
-           [ 1.,  1., -0., -0.,  1., -0., -0.,  1.,  1.]])
+    array([[ 1.,  1.,  1.,  1., -0., -0., -0., -0., -0.],
+           [ 1.,  1.,  1., -0.,  1.,  1.,  1., -0., -0.],
+           [ 1.,  1.,  1.,  0.,  0.,  0.,  0.,  1.,  1.]])
     Coordinates:
-      * word       (word) <U6 'walk' 'walked' 'walks'
-      * cues       (cues) <U3 '#wa' 'alk' 'ed#' 'ked' 'ks#' 'lk#' 'lke' 'lks' 'wal'
+      * word     (word) <U6 'walk' 'walked' 'walks'
+      * cues     (cues) <U3 '#wa' 'wal' 'alk' 'lk#' 'lke' 'ked' 'ed#' 'lks' 'ks#'
 
-.. code-block:: python
-
-    >>> chat = pmap.gen_chat(smat=smat, cmat=cmat)
-    >>> chat.round(2)
-    <xarray.DataArray (word: 3, cues: 9)>
-    array([[ 1.,  1.,  0.,  0., -0.,  1.,  0., -0.,  1.],
-           [ 1.,  1.,  1.,  1.,  0., -0.,  1.,  0.,  1.],
-           [ 1.,  1., -0., -0.,  1., -0., -0.,  1.,  1.]])
-    Coordinates:
-      * word       (word) <U6 'walk' 'walked' 'walks'
-      * cues       (cues) <U3 '#wa' 'alk' 'ed#' 'ked' 'ks#' 'lk#' 'lke' 'lks' 'wal'
 
 
 
@@ -300,4 +286,5 @@ The length of a semantic vector can be obtained by pyldl.measures.vector_length.
 
 ----
 
-.. [1] Baayen, R. H., Chuang, Y.-Y., & Blevins, J. P. (2018). Inflectional morphology with linear mappings. *The Mental Lexicon*, 13(2), 230-268.
+.. [1] Baayen, R. H., Chuang, Y.-Y., Shafaei-Bajestan, & Blevins, J. P. (2019). The discriminative lexicon: A unified computational model for the lexicon and lexical processing in comprehension and production grounded not in (de)composition but in linear discriminative learning. *Complexity* 2019, 1-39.
+
