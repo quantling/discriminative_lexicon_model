@@ -17,8 +17,8 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'pyldl'
-copyright = '2021, Motoki Saito'
+project = 'discriminative_lexicon_model'
+copyright = '2021-2024, Motoki Saito'
 author = 'Motoki Saito'
 
 
