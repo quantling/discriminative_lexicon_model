@@ -1,11 +1,13 @@
+from pathlib import Path
+from multiprocessing import Pool
+
 import pandas as pd
 import numpy as np
 import xarray as xr
-from multiprocessing import Pool
-import pyldl.mapping as lmap
-from tqdm import tqdm
 import fasttext as ft
-from pathlib import Path
+from tqdm import tqdm
+
+from . import mapping as lmap
 
 def to_cues (words, gram=3):
     words = [ '#' + i + '#'for i in words ]

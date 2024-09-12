@@ -1,6 +1,7 @@
-import pyldl.mapping as lm
 import pandas as pd
 import numpy as np
+
+from . import mapping as lm
 
 class LDL:
     def __init__ (self, words=None, embed_or_df=None, cmat=False, smat=False,

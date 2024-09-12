@@ -1,6 +1,6 @@
 from setuptools import setup
 
-pkg = __import__('pyldl')
+pkg = __import__('discriminative_lexicon_model')
 author = pkg.__author__
 email = pkg.__author_email__
 version = pkg.__version__
@@ -16,17 +16,17 @@ def load_requirements (fname):
         return [ i.rstrip() for i in list(f) if i and not i.startswith('#') ]
 
 setup(
-    name='pyldl',
+    name='discriminative_lexicon_model',
     version=version,
     license=license,
     description=description,
     long_description=open('README.rst').read(),
     author=author,
     author_email=email,
-    url='https://github.com/msaito8623/pyldl',
+    url='https://github.com/msaito8623/discriminative_lexicon_model',
     classifiers=classifiers,
     platform='Linux',
-    packages=['pyldl'],
+    packages=['discriminative_lexicon_model'],
     install_requires=load_requirements('requirements.txt'),
     extras_require={
         'tests': ['pytest'],

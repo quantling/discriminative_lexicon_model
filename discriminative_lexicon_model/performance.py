@@ -1,5 +1,5 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 import scipy.spatial.distance as spd
 
 def accuracy (hat, mat, distance=False):

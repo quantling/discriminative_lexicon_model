@@ -1,7 +1,8 @@
 import numpy as np
 import xarray as xr
 import scipy.spatial.distance as spd
-import pyldl.mapping as pmap
+
+from . import mapping as pmap
 
 def functional_load (cue, fmat, word, smat, method='corr'):
     cvec = fmat.loc[cue,:]
