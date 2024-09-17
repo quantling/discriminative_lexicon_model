@@ -22,7 +22,7 @@ Installation
 Documentation
 =============
 
-*discriminative_lexicon_model* uses ``sphinx`` to create a documentation manual. The documentation is hosted on `Read the Docs <http://discriminative-lexicon-model.readthedocs.io/en/latest/>`_.
+*discriminative_lexicon_model* uses ``sphinx`` to create a documentation manual. The documentation is hosted on `Read the Docs <https://discriminative-lexicon-model.readthedocs.io/en/latest/>`_.
 
 
 Authors and Contributers

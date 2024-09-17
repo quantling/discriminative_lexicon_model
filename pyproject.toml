@@ -1,2 +1,44 @@
-[project.optional-dependencies]
-docs = ["sphinx-rtd-theme", "sphinx_rtd_theme"]
+[tool.poetry]
+name = "discriminative_lexicon_model"
+version = "1.4.1"
+description = "Python-implementation of Discriminative Lexicon Model / Linear Discriminative Learning"
+
+license = "MIT"
+
+authors = ["Motoki Saito <motoki.saito@uni-tuebingen.de>"]
+
+readme = "README.rst"
+
+repository = "https://github.com/quantling/discriminative_lexicon_model"
+homepage = "https://discriminative-lexicon-model.readthedocs.io/en/latest/"
+
+classifiers = ['Development Status :: 3 - Alpha',
+               'Environment :: Console',
+               'Intended Audience :: Science/Research',
+               'License :: OSI Approved :: MIT License',
+               'Operating System :: POSIX :: Linux',
+               'Operating System :: MacOS',
+               'Operating System :: Microsoft :: Windows',
+               'Programming Language :: Python',
+               'Programming Language :: Python :: 3.11',
+               'Programming Language :: Python :: 3 :: Only',
+               'Topic :: Scientific/Engineering']
+
+[tool.poetry.dependencies]
+python = ">=3.11"
+numpy = ">=1.26"
+scipy = ">=1.13"
+pandas = ">=2.2"
+xarray = ">=2023.6"
+fasttext = ">=0.9"
+tqdm = ">=4.66"
+setuptools = ">=72.1"
+
+[tool.poetry.dev-dependencies]
+pytest = ">=7.4"
+sphinx = ">=7.3"
+sphinx_rtd_theme = ">=2.0"
+
+[build-system]
+requires = ["poetry-core", "setuptools", "Cython", "numpy"]
+build-backend = "poetry.core.masonry.api"
