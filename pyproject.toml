@@ -1,2 +1,2 @@
 [project.optional-dependencies]
-docs = ["sphinx-rtd-theme", "sphinx-rtd-theme"]
+docs = ["sphinx-rtd-theme", "sphinx_rtd_theme"]
