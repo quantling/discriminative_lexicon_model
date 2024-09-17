@@ -30,6 +30,6 @@ setup(
     install_requires=load_requirements('requirements.txt'),
     extras_require={
         'tests': ['pytest'],
-        'docs': ['sphinx', 'sphinx_rtd_theme']
+        'docs': ['sphinx', 'sphinx_rtd_theme', 'sphinx-rtd-theme']
         },
     )
