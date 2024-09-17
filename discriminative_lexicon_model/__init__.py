@@ -27,7 +27,7 @@ except ModuleNotFoundError:
 
 __author__ = 'Motoki Saito'
 __author_email__ = 'motoki.saito@uni-tuebingen.de'
-__version__ = '1.4'
+__version__ = '1.4.1'
 __license__ = 'MIT'
 __description__ = 'Discriminative Lexicon Model in Python'
 __classifiers__ = [
