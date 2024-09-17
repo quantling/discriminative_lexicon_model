@@ -4,3 +4,4 @@ xarray
 scipy
 fasttext
 tqdm
+sphinx-rtd-theme
