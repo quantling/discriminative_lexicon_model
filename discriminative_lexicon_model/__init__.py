@@ -21,6 +21,7 @@ except ModuleNotFoundError:
 try:
     from . import mapping
     from . import measures
+    from . import performance 
     from . import ldl
 except ModuleNotFoundError:
     pass
