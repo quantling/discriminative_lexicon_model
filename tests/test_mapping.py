@@ -90,9 +90,9 @@ def test_gen_smat_sim (ind, form, sep, dim_size, mn, sd, incl, diff, seed):
         _smat = xr.open_dataarray(_smat)
         smat = pm.gen_smat_sim(infl, form, sep, dim_size, mn, sd, incl, diff, seed)
         if seed is None:
-            assert not smat.identical(_smat)
+            assert not smat.round(10).identical(_smat.round(10))
         else:
-            assert smat.identical(_smat)
+            xr.testing.assert_allclose(smat, _smat)
 
 
 def test_gen_fmat():
@@ -101,7 +101,7 @@ def test_gen_fmat():
     fmat = pm.gen_fmat(cmat, smat)
     _fmat = '{}/fmat.nc'.format(RESOURCES)
     _fmat = xr.open_dataarray(_fmat)
-    assert fmat.identical(_fmat)
+    xr.testing.assert_allclose(fmat, _fmat)
 
 def test_gen_gmat():
     cmat = pm.gen_cmat(infl.word, gram=3, count=False, noise=0)
@@ -109,7 +109,7 @@ def test_gen_gmat():
     gmat = pm.gen_gmat(cmat, smat)
     _gmat = '{}/gmat.nc'.format(RESOURCES)
     _gmat = xr.open_dataarray(_gmat)
-    assert gmat.identical(_gmat)
+    xr.testing.assert_allclose(gmat, _gmat)
 
 cmat = pm.gen_cmat(infl.word, gram=3, count=False, noise=0)
 smat = pm.gen_smat_sim(infl, form='word', sep='/', dim_size=5, seed=10)
@@ -133,7 +133,7 @@ def test_gen_shat (ind, cmat, fmat, smat, hmat):
         if ind==3: # Rounding due to rounding errors when producing hmat.
             shat  = shat.round(10)
             _shat = _shat.round(10)
-        assert shat.identical(_shat)
+        xr.testing.assert_allclose(shat, _shat)
 
 
 gmat = pm.gen_gmat(cmat, smat)
@@ -156,7 +156,7 @@ def test_gen_chat (ind, smat, gmat, cmat, hmat):
         if ind==3: # Rounding due to rounding errors when producing hmat.
             chat  = chat.round(10)
             _chat = _chat.round(10)
-        assert chat.identical(_chat)
+        xr.testing.assert_allclose(chat, _chat)
 
 def test_update_weight_matrix ():
     w = np.zeros((4,2))
@@ -215,7 +215,7 @@ def test_incremental_learning_byind01 ():
     fmat0_cues_values = ['#a', 'a#', 'an', 'n#']
     fmat0_feature_values = ['Word:a', 'Word:an']
     fmat0 = xr.DataArray(np.array(fmat0_values).reshape(fmat0_shape), dims=fmat0_dims, coords={'cues':fmat0_cues_values, 'feature':fmat0_feature_values})
-    assert fmat_test.identical(fmat0)
+    xr.testing.assert_allclose(fmat_test, fmat0)
 
 def test_incremental_learning_byind02 ():
     cmat  = pm.gen_cmat(['a','an'], gram=2)

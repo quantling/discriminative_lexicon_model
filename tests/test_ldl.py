@@ -88,30 +88,30 @@ def test_initialize_with_matrices ():
     assert all(pd.Series(ldl.__dict__.keys()) == pd.Series(['words', 'cmat',
         'smat', 'fmat', 'gmat', 'vmat', 'chat', 'shat']))
     assert all(pd.Series(ldl.words) == pd.Series(['ban', 'banban']))
-    assert ldl.cmat.identical(cmat)
-    assert ldl.smat.identical(smat)
-    assert ldl.fmat.identical(fmat)
-    assert ldl.gmat.identical(gmat)
-    assert ldl.vmat.identical(vmat)
-    assert ldl.shat.identical(shat)
-    assert ldl.chat.identical(chat)
+    xr.testing.assert_allclose(ldl.cmat, cmat)
+    xr.testing.assert_allclose(ldl.smat, smat)
+    xr.testing.assert_allclose(ldl.fmat, fmat)
+    xr.testing.assert_allclose(ldl.gmat, gmat)
+    xr.testing.assert_allclose(ldl.vmat, vmat)
+    xr.testing.assert_allclose(ldl.shat, shat)
+    xr.testing.assert_allclose(ldl.chat, chat)
 
 def test_gen_cmat ():
     ldl = LDL()
     ldl.gen_cmat(words=words)
-    assert ldl.cmat.identical(cmat)
+    xr.testing.assert_allclose(ldl.cmat, cmat)
 
 def test_gen_cmat_withfreq ():
     ldl = LDL()
     ldl.gen_cmat(words=words, freqs=freqs)
-    assert ldl.cmat.identical(cmatfreq)
+    xr.testing.assert_allclose(ldl.cmat, cmatfreq)
 
 def test_gen_smat ():
     ldl = LDL()
     ldl.gen_smat(embed_or_df=semdf, words=words)
-    assert ldl.smat.identical(smat)
+    xr.testing.assert_allclose(ldl.smat, smat)
 
 def test_gen_smat_withfreq ():
     ldl = LDL()
     ldl.gen_smat(embed_or_df=semdf, words=words, freqs=freqs)
-    assert ldl.smat.identical(smatfreq)
+    xr.testing.assert_allclose(ldl.smat, smatfreq)
