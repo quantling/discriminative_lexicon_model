@@ -50,8 +50,8 @@ def test_semantic_support (ind, word, cue):
             assert e_info == 'xxx'
     else:
         sp = lmea.semantic_support(word, cue, chat)
-        _sp = ["0.0000000000", "1.0000000000", "None", "1.0000000000", "1.0000000000", "None", "None", "None", "None"]
-        assert '{:12.10f}'.format(sp) == _sp[ind]
+        _sp = [0, 1, "None", 1, 1, "None", "None", "None", "None"]
+        assert round(sp,10) == _sp[ind]
 
 pars_semantic_support_word = [ (i,j) for i,j in enumerate(wrd) ]
 @pytest.mark.parametrize('ind, word', pars_semantic_support_word)
