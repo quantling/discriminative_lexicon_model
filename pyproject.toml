@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "discriminative_lexicon_model"
-version = "1.4.3"
+version = "2.0,0"
 description = "Python-implementation of Discriminative Lexicon Model / Linear Discriminative Learning"
 
 license = "MIT"
@@ -40,5 +40,5 @@ sphinx = ">=7.3"
 sphinx_rtd_theme = ">=2.0"
 
 [build-system]
-requires = ["poetry-core", "setuptools", "Cython", "numpy"]
+requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
