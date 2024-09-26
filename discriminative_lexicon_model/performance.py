@@ -3,40 +3,72 @@ import pandas as pd
 import xarray as xr
 import scipy.spatial.distance as spd
 
-def accuracy (hat, mat, distance=False):
-    pred = predict_df(hat, mat, max_guess=1, distance=distance)
-    acc = pred.acc.sum() / len(pred)
+def accuracy (*, pred, gold, method='correlation'):
+    pred = predict_df(pred=pred, gold=gold, n=1, method=method)
+    acc = pred.Correct.sum() / len(pred)
     return acc
 
-def predict_df (hat, mat, max_guess=1, distance=False, method='cosine'):
-    if not isinstance(max_guess, int): raise TypeError('"max_guess" must be integer')
-    coss = distance_matrix(pred=hat, gold=mat, method=method).values
-    if distance:
-        pos1 = [np.argmin(coss, axis=1)]
-        sign = 1
-    else:
-        coss = 1 - coss
-        pos1 = [np.argmax(coss, axis=1)]
-        sign = -1
+def predict_df (*, pred, gold, n=1, method='correlation'):
+    """
+    Constructs a dataframe of predictions.
 
-    if max_guess>1:
-        pos = [ np.apply_along_axis(lambda x: np.argsort(x)[(sign*i)], 1, coss) for i in range(2,max_guess+1) ]
-    else:
-        pos = []
-    pos = pos1 + pos
-    prds = [ [ mat.word.values[j] for j in i ] for i in pos ]
-    hits = [ [ j==k for j,k in zip(i,hat.word.values) ] for i in prds ]
-    if len(prds)==1:
-        prds = [ pd.DataFrame({'pred':j}) for j in prds ]
-        hits = [ pd.DataFrame({'acc':j}) for j in hits ]
-    else:
-        prds = [ pd.DataFrame({'pred{:d}'.format(i+1):j}) for i,j in enumerate(prds) ]
-        hits = [ pd.DataFrame({'acc{:d}'.format(i+1):j}) for i,j in enumerate(hits) ]
-    prds = pd.concat(prds, axis=1)
-    hits = pd.concat(hits, axis=1)
-    wrds = pd.DataFrame({'Word':hat.word.values})
-    dddd = pd.concat([wrds,prds,hits], axis=1)
-    return dddd
+    Parameters
+    ----------
+    pred : xarray.core.dataarray.DataArray
+        A matrix of predictions. It is usually a C-hat or S-hat matrix.
+    gold : xarray.core.dataarray.DataArray
+        A matrix of gold-standard vectors. It is usually a C or S matrix.
+    n : int or None
+        The number of predictions to make for each word. When n=1, the first prediction for each word will be produced. When n=2, the first and second predictions for each word will be included in the output dataframe. When n=None, as many predictions as possible will be produced.
+    method : str
+        Which method to use to calculate distance/similarity. It must be "correlation", "cosine" (for cosine similarity), and "euclidean" (for euclidean distance).
+
+    Returns
+    -------
+    df : pandas.core.frame.DataFrame
+        A dataframe of a model's predictions.
+
+    Examples
+    --------
+    >>> import discriminative_lexicon_model as dlm
+    >>> import pandas as pd
+    >>> words = ['cat','rat','hat']
+    >>> sems = pd.DataFrame({'<animate>':[1,1,0], '<object>':[0,0,1], '<predator>':[1,0,0]}, index=words)
+    >>> mdl = dlm.ldl.LDL()
+    >>> mdl.gen_cmat(words)
+    >>> mdl.gen_smat(sems)
+    >>> mdl.gen_gmat()
+    >>> mdl.gen_chat()
+    >>> dlm.performance.predict_df(pred=mdl.chat, gold=mdl.cmat, n=2, method='correlation')
+      Word Pred1 Pred2  Correct1  Correct2
+    0  cat   cat   hat      True     False
+    1  rat   rat   hat      True     False
+    2  hat   hat   cat      True     False
+    """
+    if not (method in ['correlation', 'cosine', 'euclidean']):
+        raise ValueError('"method" must be "correlation", "cosine", or "euclidean".')
+    if not (n is None):
+        if not isinstance(n, int):
+            raise TypeError('"n" must be integer or None.')
+        if not (n>0):
+            raise ValueError('"n" must be a positive integer.')
+    n = pred.shape[0] if n is None else n
+    
+    dist = distance_matrix(pred=pred, gold=gold, method=method).values
+    dist = dist if method=='euclidean' else 1-dist
+    inds = dist.argsort(axis=1) if method=='euclidean' else (-dist).argsort(axis=1)
+    inds = inds[:,:n]
+    
+    prds = np.apply_along_axis(lambda x: gold.word.values[x], 1, inds)
+    hits = np.array([ prds[i,:]==j for i,j in zip(range(prds.shape[0]), gold.word.values) ])
+    
+    clms = ['Pred'] if prds.shape[1]==1 else [ 'Pred{:d}'.format(i) for i in range(1, prds.shape[1]+1) ]
+    prds = pd.DataFrame(prds, columns=clms)
+    clms = ['Correct'] if hits.shape[1]==1 else [ 'Correct{:d}'.format(i) for i in range(1, hits.shape[1]+1) ]
+    hits = pd.DataFrame(hits, columns=clms)
+    wrds = pd.DataFrame({'Word':gold.word.values})
+    df = pd.concat([wrds, prds, hits], axis=1)
+    return df
 
 def distance_matrix (*, pred, gold, method='cosine'):
     """
@@ -69,16 +101,4 @@ def distance_matrix (*, pred, gold, method='cosine'):
                   'gold':gold[gold.dims[0]].values}
     dist = xr.DataArray(dist, dims=('pred','gold'), coords=new_coords)
     return dist
-
-def predict (word, hat, mat, distance=False):
-    hat = np.tile(hat.loc[word,:], (1,1))
-    coss = spd.cdist(np.array(hat), np.array(mat), 'cosine')
-    if distance:
-        sign = 1
-    else:
-        coss = 1 - coss
-        sign = -1
-    coss = coss[0,:]
-    pred = mat.word.values[np.argsort(sign*coss)]
-    return pd.Series(pred)
 

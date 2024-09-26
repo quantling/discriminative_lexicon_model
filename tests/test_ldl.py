@@ -3,9 +3,9 @@ import numpy as np
 import os
 import pandas as pd
 from pathlib import Path
-import pyldl.mapping as pm
+import discriminative_lexicon_model.mapping as pm
 import xarray as xr
-from pyldl.ldl import LDL
+from discriminative_lexicon_model.ldl import LDL
 
 TEST_ROOT = Path('.')
 #TEST_ROOT = Path(__file__).parent

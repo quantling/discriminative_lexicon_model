@@ -1,4 +1,4 @@
-Word	pred	acc
+Word	Pred	Correct
 walk0	walk0	True
 walk1	walk0	False
 walks	walks	True
