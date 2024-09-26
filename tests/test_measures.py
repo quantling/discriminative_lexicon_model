@@ -3,8 +3,8 @@ import numpy as np
 import os
 import pandas as pd
 from pathlib import Path
-import pyldl.mapping as pm
-import pyldl.measures as lmea
+import discriminative_lexicon_model.mapping as pm
+import discriminative_lexicon_model.measures as lmea
 import xarray as xr
 
 TEST_ROOT = Path(__file__).parent

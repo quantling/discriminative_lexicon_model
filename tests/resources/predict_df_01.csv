@@ -1,7 +1,7 @@
-Word	pred	acc
-walk0	walk0	True
-walk1	walk0	False
-walks	walks	True
-walked0	walked0	True
-walked1	walked0	False
-walked2	walked0	False
+Word	Pred1	Pred2	Correct1	Correct2
+walk0	walk0	walk1	True	False
+walk1	walk0	walk1	False	True
+walks	walks	walk0	True	False
+walked0	walked0	walked1	True	False
+walked1	walked0	walked1	False	True
+walked2	walked0	walked1	False	False

@@ -5,7 +5,7 @@ import scipy.spatial.distance as spd
 
 def accuracy (*, pred, gold, method='correlation'):
     pred = predict_df(pred=pred, gold=gold, n=1, method=method)
-    acc = pred.acc.sum() / len(pred)
+    acc = pred.Correct.sum() / len(pred)
     return acc
 
 def predict_df (*, pred, gold, n=1, method='correlation'):

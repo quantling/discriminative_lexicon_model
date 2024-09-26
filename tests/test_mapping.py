@@ -3,7 +3,7 @@ import numpy as np
 import os
 import pandas as pd
 from pathlib import Path
-import pyldl.mapping as pm
+import discriminative_lexicon_model.mapping as pm
 import xarray as xr
 
 # TEST_ROOT = Path('.')
