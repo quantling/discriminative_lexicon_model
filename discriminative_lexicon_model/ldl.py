@@ -119,10 +119,14 @@ class LDL:
             df = concat_cues(df.Selected)
         return df
 
-    def save_matrices (self, directory, add=''):
-        mats = ['cmat','smat','fmat','gmat','vmat','shat','chat']
+    def save_matrices (self, directory, mats=None, add=''):
+        if mats is None:
+            mats = ['cmat','smat','fmat','gmat','vmat','shat','chat']
         for i in mats:
-            lm.save_mat_as_csv(getattr(self, i), directory=directory, stem=i, add=add)
+            if hasattr(self, i):
+                lm.save_mat_as_csv(getattr(self, i), directory=directory, stem=i, add=add)
+            else:
+                pass
         return None
 
     def load_matrices (self, directory, add=''):
