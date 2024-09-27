@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "discriminative_lexicon_model"
-version = "2.0.1"
+version = "2.0.2"
 description = "Python-implementation of Discriminative Lexicon Model / Linear Discriminative Learning"
 
 license = "MIT"
