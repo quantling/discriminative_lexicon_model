@@ -159,8 +159,8 @@ The model's predictions about word-meanings based on word-forms (i.e., :math:`\m
 
 .. code-block:: python
 
-    >>> shat = dlm.mapping.gen_shat(cmat, fmat)
-    >>> shat.round(2)
+    >>> mdl.gen_shat()
+    >>> print(mdl.shat.round(2))
     <xarray.DataArray (word: 3, semantics: 4)>
     array([[ 1.,  1., -0., -0.],
            [ 1., -0.,  1., -0.],
@@ -177,8 +177,8 @@ Similarly, the model's predictions about word-forms based on word-meanings (i.e.
 
 .. code-block:: python
 
-    >>> chat = dlm.mapping.gen_chat(smat, gmat)
-    >>> chat.round(2)
+    >>> mdl.gen_chat()
+    >>> print(mdl.chat.round(2))
     <xarray.DataArray (word: 3, cues: 9)>
     array([[ 1.,  1.,  1.,  1., -0., -0., -0., -0., -0.],
            [ 1.,  1.,  1., -0.,  1.,  1.,  1., -0., -0.],
