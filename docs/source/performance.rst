@@ -8,13 +8,13 @@ To illustrate the performance measures, this section will use the same matrices 
 Prediction accuracy
 ===================
 
-pyldl.performance.accuracy returns how many words are correcly predicted.
+discriminative_lexicon_model.performance.accuracy returns how many words are correcly predicted.
 
 .. code-block:: python
 
     >>> import pandas as pd
-    >>> import pyldl.mapping as pmap
-    >>> import pyldl.performance as lp
+    >>> import discriminative_lexicon_model.mapping as pmap
+    >>> import discriminative_lexicon_model.performance as lp
     >>> words = ['walk','walked','walks']
     >>> cmat  = pmap.gen_cmat(words)
     >>> infl = pd.DataFrame({'Word':['walk','walked','walks'], 'Lemma':['walk','walk','walk'], 'Tense':['PRES','PAST','PRES']})
@@ -32,7 +32,7 @@ Since this toy example is so tiny, all the words are perfectlly correctly predic
 Prediction dataframes
 =====================
 
-You can see which word is predicted correctly in more details with pyldl.performance.predict_df. 
+You can see which word is predicted correctly in more details with discriminative_lexicon_model.performance.predict_df. 
 
 .. code-block:: python
 

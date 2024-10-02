@@ -8,11 +8,11 @@ NDL only accepts binary inputs and outputs. Cues or outcomes are present (1) or 
 
 To estimate associations (or weight matrices) between cues and outcomes, LDL requires two matrices. One is a C-matrix (i.e., :math:`\mathbf{C}`), which can also be called a form matrix or a cue matrix. :math:`\mathbf{C}` has words as rows and sublexical units (e.g., triphones) as columns. Each row represents a form vector of a word. In the current implementation, each form vector is coded 1 where the triphone is contained in the word and 0 otherwise.
 
-With pyldl, you can create a :math:`\mathbf{C}` from a list of words by using pyldl.mapping.gen_cmat.
+With discriminative_lexicon_model, you can create a :math:`\mathbf{C}` from a list of words by using discriminative_lexicon_model.mapping.gen_cmat.
 
 .. code-block:: python
     
-    >>> import pyldl.mapping as pmap
+    >>> import discriminative_lexicon_model.mapping as pmap
     >>> words = ['walk','walked','walks']
     >>> cmat  = pmap.gen_cmat(words)
     >>> cmat
@@ -26,7 +26,7 @@ With pyldl, you can create a :math:`\mathbf{C}` from a list of words by using py
 
 The other matrix LDL requires is a S-matrix (i.e., :math:`\mathbf{S}`). :math:`\mathbf{S}` can also be called a meaning matrix or an outcome matrix. :math:`\mathbf{S}` also has words as rows as :math:`\mathbf{C}`, but :math:`\mathbf{S}`'s columns are semantic dimensions. Therefore, rows of :math:`\mathbf{S}` can be understood as semantic vectors of words.
 
-While :math:`\mathbf{S}` can be obtained by embedding techniques such as word2vec, pyldl offers a way of approximating words' semantic vectors by those words' inflectional information. The semantic vectors created in this method are called "simulated semantic vectors" [6]_.
+While :math:`\mathbf{S}` can be obtained by embedding techniques such as word2vec, discriminative_lexicon_model offers a way of approximating words' semantic vectors by those words' inflectional information. The semantic vectors created in this method are called "simulated semantic vectors" [6]_.
 
 .. code-block:: python
 
@@ -51,7 +51,7 @@ This method is implemented with two matrices: :math:`\mathbf{M}` and :math:`\mat
     \mathbf{S}_{\text{sim}} = \mathbf{MJ}
 
 
-:math:`\mathbf{M}` and :math:`\mathbf{J}` can be obtained in pyldl with pyldl.mapping.gen_mmat and pyldl.mapping.gen_jmat. They are used internally in pyldl.mapping.gen_smat_sim.
+:math:`\mathbf{M}` and :math:`\mathbf{J}` can be obtained in discriminative_lexicon_model with discriminative_lexicon_model.mapping.gen_mmat and discriminative_lexicon_model.mapping.gen_jmat. They are used internally in discriminative_lexicon_model.mapping.gen_smat_sim.
 
 Now that we have :math:`\mathbf{C}` and :math:`\mathbf{S}`, we can "learn" the associations between them. The associations, or weight matrices, between them are called :math:`\mathbf{F}` and :math:`\mathbf{G}`. These two weight matrices are mathematically obtained as below [1]_:
 
@@ -80,7 +80,7 @@ Now that we have :math:`\mathbf{C}` and :math:`\mathbf{S}`, we can "learn" the a
 
     \mathbf{G} = \mathbf{(S^{T}S)^{-1}S^{T}C}
 
-In pyldl, :math:`\mathbf{F}` and :math:`\mathbf{G}` can be obtained with pyldl.mapping.gen_fmat and pyldl.mapping.gen_gmat:
+In discriminative_lexicon_model, :math:`\mathbf{F}` and :math:`\mathbf{G}` can be obtained with discriminative_lexicon_model.mapping.gen_fmat and discriminative_lexicon_model.mapping.gen_gmat:
 
 .. code-block:: python
 
@@ -123,7 +123,7 @@ In pyldl, :math:`\mathbf{F}` and :math:`\mathbf{G}` can be obtained with pyldl.m
 
 :math:`\mathbf{\hat{S}}` is a predicted semantic matrix (or semantic vectors). Since this equation represents the process to infer meanings based on forms, it can be understood conceptually as the comprehension process of language.
 
-In pyldl, you can use pyldl.mapping.gen_shat for this purpose:
+In discriminative_lexicon_model, you can use discriminative_lexicon_model.mapping.gen_shat for this purpose:
 
 .. code-block:: python
 
@@ -138,7 +138,7 @@ In pyldl, you can use pyldl.mapping.gen_shat for this purpose:
       * semantics  (semantics) <U4 'S000' 'S001' 'S002' 'S003' 'S004'
 
 
-In fact, you do not have to produce :math:`\mathbf{F}`, if you are only interested in producing :math:`\mathbf{\hat{S}}`. You can directly estimate :math:`\mathbf{\hat{S}}` from :math:`\mathbf{C}` and :math:`\mathbf{S}` with pyldl.mapping.gen_shat:
+In fact, you do not have to produce :math:`\mathbf{F}`, if you are only interested in producing :math:`\mathbf{\hat{S}}`. You can directly estimate :math:`\mathbf{\hat{S}}` from :math:`\mathbf{C}` and :math:`\mathbf{S}` with discriminative_lexicon_model.mapping.gen_shat:
 
 .. code-block:: python
 
@@ -159,7 +159,7 @@ Similarly to :math:`\mathbf{F}`, :math:`\mathbf{G}` is also used to produce pred
 
     \mathbf{SG} = \mathbf{\hat{C}}
 
-In pyldl, :math:`\mathbf{\hat{C}}` is obtained by pyldl.mapping.gen_chat.
+In discriminative_lexicon_model, :math:`\mathbf{\hat{C}}` is obtained by discriminative_lexicon_model.mapping.gen_chat.
 
 .. code-block:: python
 

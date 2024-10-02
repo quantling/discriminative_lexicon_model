@@ -199,11 +199,11 @@ Check the model's performance
 Prediction accuracy
 -------------------
 
-pyldl.performance.accuracy returns how many words are correcly predicted.
+discriminative_lexicon_model.performance.accuracy returns how many words are correcly predicted.
 
 .. code-block:: python
 
-    >>> import pyldl.performance as lp
+    >>> import discriminative_lexicon_model.performance as lp
     >>> lp.accuracy(chat, cmat)
     1.0
     >>> lp.accuracy(shat, smat)
@@ -213,7 +213,7 @@ pyldl.performance.accuracy returns how many words are correcly predicted.
 Prediction dataframes
 ---------------------
 
-You can see which word is predicted correctly in more details with pyldl.performance.predict_df. 
+You can see which word is predicted correctly in more details with discriminative_lexicon_model.performance.predict_df. 
 
 .. code-block:: python
 
@@ -257,7 +257,7 @@ Semantic support represents how much a particular form (e.g. triphone) is suppor
 
 .. code-block:: python
 
-    >>> import pyldl.measures as lmea
+    >>> import discriminative_lexicon_model.measures as lmea
     >>> sem_ed = lmea.semantic_support('walked', 'ed#', chat)
     >>> round(sem_ed, 10)
     1.0
@@ -296,7 +296,7 @@ Functional load represents how much a certain form (e.g. triphone) helps to iden
 Uncertainty in production and comprehension
 -------------------------------------------
 
-pyldl.measures.uncertainty returns how much uncertainty is among the model's predictions.
+discriminative_lexicon_model.measures.uncertainty returns how much uncertainty is among the model's predictions.
 
 .. code-block:: python
 
@@ -311,7 +311,7 @@ pyldl.measures.uncertainty returns how much uncertainty is among the model's pre
 Semantic vector length
 ----------------------
 
-The length of a semantic vector can be obtained by pyldl.measures.vector_length.
+The length of a semantic vector can be obtained by discriminative_lexicon_model.measures.vector_length.
 
 .. code-block:: python
 
