@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 
 from . import mapping as lm
+from . import performance as lp
 
 class LDL:
     def __init__ (self, words=None, embed_or_df=None, cmat=False, smat=False,
@@ -135,6 +136,34 @@ class LDL:
             mat = lm.load_mat_from_csv(directory=directory, stem=i, add=add)
             setattr(self, i, mat)
         return None
+
+    def accuracy (self, method='correlation', print_output=True):
+        acc_comp = acc_prod = None
+        exist_chat = hasattr(self, 'chat')
+        exist_shat = hasattr(self, 'shat')
+        if exist_chat:
+            acc_prod = lp.accuracy(pred=self.chat, gold=self.cmat, method=method)
+        if exist_shat:
+            acc_comp = lp.accuracy(pred=self.shat, gold=self.smat, method=method)
+        if (acc_comp is None) and (acc_prod is None):
+            raise ValueError('No C-hat or S-hat was found.')
+        if print_output:
+            if (acc_comp is None) and (not acc_prod is None):
+                acc_prod = 'Production: {}'.format(acc_prod)
+                acc = acc_prod
+            elif (not acc_comp is None) and (acc_prod is None):
+                acc_comp = 'Comprehension: {}'.format(acc_comp)
+                acc = acc_comp
+            else:
+                acc_prod = 'Production: {}'.format(acc_prod)
+                acc_comp = 'Comprehension: {}'.format(acc_comp)
+                acc = acc_comp + '\n' + acc_prod
+            print(acc)
+            acc = None
+        else:
+            acc = {'Comprehension': acc_comp, 'Production': acc_prod}
+            acc = { i:j for i,j in acc.items() if not j is None }
+        return acc
 
 def concat_cues (a):
     assert is_consecutive(a)
