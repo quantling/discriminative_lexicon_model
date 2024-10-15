@@ -159,8 +159,8 @@ The model's predictions about word-meanings based on word-forms (i.e., :math:`\m
 
 .. code-block:: python
 
-    >>> shat = dlm.mapping.gen_shat(cmat, fmat)
-    >>> shat.round(2)
+    >>> mdl.gen_shat()
+    >>> print(mdl.shat.round(2))
     <xarray.DataArray (word: 3, semantics: 4)>
     array([[ 1.,  1., -0., -0.],
            [ 1., -0.,  1., -0.],
@@ -177,8 +177,8 @@ Similarly, the model's predictions about word-forms based on word-meanings (i.e.
 
 .. code-block:: python
 
-    >>> chat = dlm.mapping.gen_chat(smat, gmat)
-    >>> chat.round(2)
+    >>> mdl.gen_chat()
+    >>> print(mdl.chat.round(2))
     <xarray.DataArray (word: 3, cues: 9)>
     array([[ 1.,  1.,  1.,  1., -0., -0., -0., -0., -0.],
            [ 1.,  1.,  1., -0.,  1.,  1.,  1., -0., -0.],
@@ -199,11 +199,11 @@ Check the model's performance
 Prediction accuracy
 -------------------
 
-pyldl.performance.accuracy returns how many words are correcly predicted.
+discriminative_lexicon_model.performance.accuracy returns how many words are correcly predicted.
 
 .. code-block:: python
 
-    >>> import pyldl.performance as lp
+    >>> import discriminative_lexicon_model.performance as lp
     >>> lp.accuracy(chat, cmat)
     1.0
     >>> lp.accuracy(shat, smat)
@@ -213,7 +213,7 @@ pyldl.performance.accuracy returns how many words are correcly predicted.
 Prediction dataframes
 ---------------------
 
-You can see which word is predicted correctly in more details with pyldl.performance.predict_df. 
+You can see which word is predicted correctly in more details with discriminative_lexicon_model.performance.predict_df. 
 
 .. code-block:: python
 
@@ -257,7 +257,7 @@ Semantic support represents how much a particular form (e.g. triphone) is suppor
 
 .. code-block:: python
 
-    >>> import pyldl.measures as lmea
+    >>> import discriminative_lexicon_model.measures as lmea
     >>> sem_ed = lmea.semantic_support('walked', 'ed#', chat)
     >>> round(sem_ed, 10)
     1.0
@@ -296,7 +296,7 @@ Functional load represents how much a certain form (e.g. triphone) helps to iden
 Uncertainty in production and comprehension
 -------------------------------------------
 
-pyldl.measures.uncertainty returns how much uncertainty is among the model's predictions.
+discriminative_lexicon_model.measures.uncertainty returns how much uncertainty is among the model's predictions.
 
 .. code-block:: python
 
@@ -311,7 +311,7 @@ pyldl.measures.uncertainty returns how much uncertainty is among the model's pre
 Semantic vector length
 ----------------------
 
-The length of a semantic vector can be obtained by pyldl.measures.vector_length.
+The length of a semantic vector can be obtained by discriminative_lexicon_model.measures.vector_length.
 
 .. code-block:: python
 

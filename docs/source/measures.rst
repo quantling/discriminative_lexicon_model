@@ -16,13 +16,13 @@ Semantic support from a word's meaning to a triphone is defined as the value of 
 
     \text{SemSup}_{i,j} = \mathbf{\hat{C}}_{i,j}
 
-In pyldl, semantic support can be obtained by pyldl.measures.semantic_support.
+In discriminative_lexicon_model, semantic support can be obtained by discriminative_lexicon_model.measures.semantic_support.
 
 .. code-block:: python
 
     >>> import pandas as pd
-    >>> import pyldl.mapping as pmap
-    >>> import pyldl.measures as lmea
+    >>> import discriminative_lexicon_model.mapping as pmap
+    >>> import discriminative_lexicon_model.measures as lmea
     >>> words = ['walk','walked','walks']
     >>> cmat  = pmap.gen_cmat(words)
     >>> infl = pd.DataFrame({'Word':['walk','walked','walks'], 'Lemma':['walk','walk','walk'], 'Tense':['PRES','PAST','PRES']})
@@ -38,7 +38,7 @@ In pyldl, semantic support can be obtained by pyldl.measures.semantic_support.
 
 The meaning of *walked* supports the triphone *-ks#* very strongly, because *-ks#* is a part of *walked*, while the meaning of *walked* does not support *-ks#* at all, because *-ks#* is not contained by *walked*. The system successfully discriminated forms based on semantics, which is unsurprising, considering how tiny this toy example is!
 
-pyldl.measures.semantic_support only calculates a semantic support value from a word to a triphone. If you would like to know how much support a word's semantics give to its component triphones in total, you need to add up all the semantic values from the word's semantics to all the component triphones. For this purpose, pyldl.measures.semantic_support_word can be used:
+discriminative_lexicon_model.measures.semantic_support only calculates a semantic support value from a word to a triphone. If you would like to know how much support a word's semantics give to its component triphones in total, you need to add up all the semantic values from the word's semantics to all the component triphones. For this purpose, discriminative_lexicon_model.measures.semantic_support_word can be used:
 
 .. code-block:: python
 
@@ -56,7 +56,7 @@ A different way of understanding semantic support is to focus on how well word-f
 
     \text{ProdAcc}_{i} = \text{cor}(\mathbf{\hat{C}}_{i,*}, \mathbf{C}_{i,*})
 
-:math:`\text{ProdAcc}` can be obtained by pyldl.measures.prod_acc.
+:math:`\text{ProdAcc}` can be obtained by discriminative_lexicon_model.measures.prod_acc.
 
 .. code-block:: python
 
@@ -76,7 +76,7 @@ Semantic support is a measure from the perspective of speech production. Its cou
 
 where :math:`\mathbf{F}_{j,*}` and :math:`\mathbf{\hat{S}}_{i,*}` represent the :math:`j`-th and :math:`i`-th row vectors of :math:`\mathbf{F}` and :math:`\mathbf{\hat{S}}` respectively.
 
-In pyldl, functional load can be obtained with pyldl.measures.functional_load.
+In discriminative_lexicon_model, functional load can be obtained with discriminative_lexicon_model.measures.functional_load.
 
 .. code-block:: python
 
@@ -95,7 +95,7 @@ Uncertainty in production and comprehension
 
 Semantic support and functional load are the measures that care how much the target triphone/word is supported. Semantic measures can be set up from another perspective, namely from the perspective of the target word/triphone's neighborhood. If the target word is supported (or activated) strongly alone with the others being not activated so much, then the target word has less chance to be confused with other similar words. On the other hand, if the target word has many neighbors activated at the same time with very close competition, then the target word may be difficult to process, even if it receives the strongest activation/support.
 
-This concept of "uncertainty" is defined in pyldl as the sum of the products of the correlation coefficients between the predicted vector of the target word and all the other words' vectors and the correlation's ranks:
+This concept of "uncertainty" is defined in discriminative_lexicon_model as the sum of the products of the correlation coefficients between the predicted vector of the target word and all the other words' vectors and the correlation's ranks:
 
 .. math::
 
@@ -107,7 +107,7 @@ This measure represents how much uncertainty there is in the production process.
 
    \text{UncertComp}_{i} = \sum_{k} \big( \text{cor}(\mathbf{\hat{S}}_{i,*}, \mathbf{S}_{k,*}) \times \text{rank}(\text{cor}(\mathbf{\hat{S}}_{i,*}, \mathbf{S}_{k,*})) \big)
 
-:math:`\text{UncertProd}` and :math:`\text{UncertComp}` only differ in which group of matrices to use, namely :math:`\mathbf{C}` and :math:`\mathbf{\hat{C}}` vs. :math:`\mathbf{S}` and :math:`\mathbf{\hat{S}}`. Therefore, in pyldl, there is only one method, which can be used for :math:`\text{UncertProd}` and :math:`\text{UncertComp}`.
+:math:`\text{UncertProd}` and :math:`\text{UncertComp}` only differ in which group of matrices to use, namely :math:`\mathbf{C}` and :math:`\mathbf{\hat{C}}` vs. :math:`\mathbf{S}` and :math:`\mathbf{\hat{S}}`. Therefore, in discriminative_lexicon_model, there is only one method, which can be used for :math:`\text{UncertProd}` and :math:`\text{UncertComp}`.
 
 .. code-block:: python
 
@@ -122,7 +122,7 @@ This measure represents how much uncertainty there is in the production process.
 Semantic vector length
 ======================
 
-Another aspect of semantic vectors is their lengths. It can be obtained by pyldl.measures.vector_length.
+Another aspect of semantic vectors is their lengths. It can be obtained by discriminative_lexicon_model.measures.vector_length.
 
 .. math::
 
