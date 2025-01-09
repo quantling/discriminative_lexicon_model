@@ -4,6 +4,44 @@ import xarray as xr
 import scipy.spatial.distance as spd
 
 def accuracy (*, pred, gold, method='correlation'):
+    """
+    Calculates prediction accuracy from a matrix of predictions and that of
+    gold-standard vectors. The prediction is considered as "correct" when its
+    corresponding gold-standard vector is the most strongly correlated with the
+    predicted vecor.
+
+    Parameters
+    ----------
+    pred : xarray.core.dataarray.DataArray
+        A matrix of predictions. It is usually a C-hat or S-hat matrix.
+    gold : xarray.core.dataarray.DataArray
+        A matrix of gold-standard vectors. It is usually a C or S matrix.
+    method : str
+        Which method to use to calculate distance/similarity. It must be
+        "correlation", "cosine" (for cosine similarity), and "euclidean" (for
+        euclidean distance).
+
+    Returns
+    -------
+    n : float
+        The accuracy of the predictions, namely the ratio of words that are
+        predicted correctly.to the total number of the words.
+
+    Examples
+    --------
+    >>> import discriminative_lexicon_model as dlm
+    >>> import pandas as pd
+    >>> words = ['cat','rat','hat']
+    >>> sems = pd.DataFrame({'<animate>':[1,1,0], '<object>':[0,0,1], '<predator>':[1,0,0]}, index=words)
+    >>> mdl = dlm.ldl.LDL()
+    >>> mdl.gen_cmat(words)
+    >>> mdl.gen_smat(sems)
+    >>> mdl.gen_gmat()
+    >>> mdl.gen_chat()
+    >>> print(dlm.performance.accuracy(pred=mdl.chat, gold=mdl.cmat, method='correlation'))
+    1.0
+    """
+
     pred = predict_df(pred=pred, gold=gold, n=1, method=method)
     acc = pred.Correct.sum() / len(pred)
     return acc
