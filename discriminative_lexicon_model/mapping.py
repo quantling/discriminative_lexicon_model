@@ -535,7 +535,7 @@ def save_mat_as_csv (mat, directory='.', stem='mat', add=''):
     np.savetxt(path_dim1, vals_dim1, fmt='%s', delimiter='\t', comments=None)
     return None
 
-def load_mat_from_csv (directory, stem, add=''):
+def load_mat_from_csv (directory, stem, add='', suffix='.csv'):
     """
     Loads the csv files that are assumed to have been saved by save_mat_as_csv.
 
@@ -555,13 +555,15 @@ def load_mat_from_csv (directory, stem, add=''):
         the files 'foobar_main_X.csv', 'foobar_xxx_X.csv' where 'xxx' is the
         name of the first dimension, 'foobar_yyy_X.csv' where 'yyy' is the name
         of the second dimension, and 'foobar_meta_X.csv'.
+    suffix : str
+        The file extension. As default, it is assumed to be ".csv". You can set
+        it to ".csv.gz" if the output by save_mat_as_csv is compressed by gzip.
 
     Returns
     -------
     mat : xarray.core.dataarray.DataArray
         An xarray matrix, reconstructed from the csv files being loaded.
     """
-    suffix = '.csv'
     name_main = 'main'
     name_meta = 'meta'
     path_main = '{}/{}_{}{}{}'.format(directory, stem, name_main, add, suffix)
