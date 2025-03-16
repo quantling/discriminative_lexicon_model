@@ -598,7 +598,7 @@ def load_csv (path):
     csv : list
         A list of dimension values.
     """
-    if paths[-3:]=='.gz':
+    if path[-3:]=='.gz':
         with gzip.open(path, 'rt') as f:
             csv = f.readlines()
     else:
