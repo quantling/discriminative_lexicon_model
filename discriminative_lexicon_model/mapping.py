@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 import fasttext as ft
+import gzip
 from tqdm import tqdm
 
 from . import mapping as lmap
@@ -597,10 +598,12 @@ def load_csv (path):
     csv : list
         A list of dimension values.
     """
-    with open(path, 'r') as f:
-        csv = f.readlines()
+    if paths[-3:]=='.gz':
+        with gzip.open(path, 'rt') as f:
+            csv = f.readlines()
+    else:
+        with open(path, 'r') as f:
+            csv = f.readlines()
     csv = [ i.rstrip('\n') for i in csv ]
     return csv
-
-
 
