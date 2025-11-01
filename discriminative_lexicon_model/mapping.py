@@ -452,6 +452,17 @@ def delta_weight_matrix (weight_matrix, cue_vector, out_vector, learning_rate=0.
     dlt = matmul(cue_vector.T, dlt) * learning_rate
     return dlt
 
+def update_weight_alt (weight_matrix, cue_vector, out_vector, learning_rate=0.1):
+    dlt = delta_weight_alt(weight_matrix, cue_vector, out_vector, learning_rate)
+    weight_matrix = weight_matrix + dlt
+    return weight_matrix
+
+def delta_weight_alt (weight_matrix, cue_vector, out_vector, learning_rate=0.1):
+    weight_matrix, cue_vector, out_vector = to_nparray(weight_matrix, cue_vector, out_vector)
+    dlt = out_vector - matmul(cue_vector, weight_matrix)
+    dlt = cue_vector.T.dot(out_vector) * dlt * learning_rate
+    return dlt
+
 def matmul (m1, m2):
     if any(is_xarray(m1, m2)):
         if not np.array_equal(m1[m1.dims[1]].values, m2[m2.dims[0]].values):
