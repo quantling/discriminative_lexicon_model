@@ -435,7 +435,7 @@ def incremental_learning_byind (events, cue_matrix, out_matrix):
     _coords = {_dims[0]: cue_matrix[_dims[0]].values.tolist(), _dims[1]: out_matrix[_dims[1]].values.tolist()}
     weight_matrix = np.zeros((cue_matrix.shape[1], out_matrix.shape[1]))
     weight_matrix = xr.DataArray(weight_matrix, dims=_dims, coords=_coords)
-    for i in events:
+    for i in tqdm(events):
         cvec = cue_matrix[i,:]
         ovec = out_matrix[i,:]
         weight_matrix = lmap.update_weight_matrix(weight_matrix, cvec, ovec, learning_rate=0.1)
