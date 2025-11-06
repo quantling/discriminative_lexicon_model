@@ -435,7 +435,7 @@ def incremental_learning_byind (events, cue_matrix, out_matrix):
     _coords = {_dims[0]: cue_matrix[_dims[0]].values.tolist(), _dims[1]: out_matrix[_dims[1]].values.tolist()}
     weight_matrix = np.zeros((cue_matrix.shape[1], out_matrix.shape[1]))
     weight_matrix = xr.DataArray(weight_matrix, dims=_dims, coords=_coords)
-    for i in events:
+    for i in tqdm(events):
         cvec = cue_matrix[i,:]
         ovec = out_matrix[i,:]
         weight_matrix = lmap.update_weight_matrix(weight_matrix, cvec, ovec, learning_rate=0.1)
@@ -450,6 +450,17 @@ def delta_weight_matrix (weight_matrix, cue_vector, out_vector, learning_rate=0.
     weight_matrix, cue_vector, out_vector = to_nparray(weight_matrix, cue_vector, out_vector)
     dlt = out_vector - matmul(cue_vector, weight_matrix)
     dlt = matmul(cue_vector.T, dlt) * learning_rate
+    return dlt
+
+def update_weight_alt (weight_matrix, cue_vector, out_vector, learning_rate=0.1):
+    dlt = delta_weight_alt(weight_matrix, cue_vector, out_vector, learning_rate)
+    weight_matrix = weight_matrix + dlt
+    return weight_matrix
+
+def delta_weight_alt (weight_matrix, cue_vector, out_vector, learning_rate=0.1):
+    weight_matrix, cue_vector, out_vector = to_nparray(weight_matrix, cue_vector, out_vector)
+    dlt = out_vector - matmul(cue_vector, weight_matrix)
+    dlt = cue_vector.T.dot(out_vector) * dlt * learning_rate
     return dlt
 
 def matmul (m1, m2):
@@ -607,3 +618,18 @@ def load_csv (path):
     csv = [ i.rstrip('\n') for i in csv ]
     return csv
 
+def save_mat (xarr, path):
+    df = xarr.to_pandas()
+    _indname = not (df.index.name is None)
+    _colname = not (df.columns.name is None)
+    if _indname and _colname:
+        df.index.name = df.index.name + '/' + df.columns.name
+        df.columns.name = None
+    df.to_csv(path, sep='\t', index=True, header=True)
+    return None
+
+def load_mat (path):
+    df = pd.read_csv(path, sep='\t', index_col=0, header=0, na_filter=False, quoting=3)
+    df.index.name, df.columns.name = df.index.name.split('/')
+    xarr = xr.DataArray(df)
+    return xarr

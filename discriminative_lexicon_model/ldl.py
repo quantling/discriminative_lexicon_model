@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import re
+from pathlib import Path
 
 from . import mapping as lm
 from . import performance as lp
@@ -36,7 +38,7 @@ class LDL:
         if events is None:
             self.fmat = lm.gen_fmat(cmat=self.cmat, smat=self.smat)
         else:
-            isind = all([ isinstance(i, int) for i in events ])
+            isind = all([ isinstance(i, (int, np.integer)) for i in events ])
             if isind:
                 self.fmat = lm.incremental_learning_byind(events, self.cmat, self.smat)
             else:
@@ -47,17 +49,17 @@ class LDL:
         if events is None:
             self.gmat = lm.gen_gmat(cmat=self.cmat, smat=self.smat)
         else:
-            isind = all([ isinstance(i, int) for i in events ])
+            isind = all([ isinstance(i, (int, np.integer)) for i in events ])
             if isind:
                 self.gmat = lm.incremental_learning_byind(events, self.smat, self.cmat)
             else:
                 self.gmat = lm.incremental_learning(events, self.smat, self.cmat)
         return None
 
-    def gen_vmat (self, words=None):
+    def gen_vmat (self, words=None, gram=3):
         if not (words is None):
             self.words = words
-        self.vmat = lm.gen_vmat(self.words)
+        self.vmat = lm.gen_vmat(self.words, gram=gram)
         return None
 
     def gen_shat (self):
@@ -85,7 +87,7 @@ class LDL:
             self.gen_shat()
         return None
 
-    def produce (self, gold, word=False, roundby=10, max_attempt=50, positive=False):
+    def produce (self, gold, word=False, roundby=10, max_attempt=50, positive=False, apply_vmat=True):
         if not isinstance(gold, np.ndarray):
             gold = np.array(gold)
         p = -1
@@ -97,7 +99,10 @@ class LDL:
             if positive:
                 s0[s0<0] = 0 # It may be necessary for a small lexicon with multi-hot matrices.
             s = gold - s0
-            g = np.matmul(self.gmat.values, np.diag(self.vmat.loc[self.vmat.current.values[p],:].values))
+            if apply_vmat:
+                g = np.matmul(self.gmat.values, np.diag(self.vmat.loc[self.vmat.current.values[p],:].values))
+            else:
+                g = self.gmat.values
             c_prod = np.matmul(s, g)
             # c_prod[c_prod<0] = 0  # It may be necessary for a small lexicon with multi-hot matrices.
             if (c_prod<=0).all():
@@ -107,7 +112,8 @@ class LDL:
                 c_comp[p] = c_comp[p] + 1
                 xs = xs + [self.cmat.cues.values[p]]
                 vecs = vecs + [c_prod.round(roundby)]
-            is_end = xs[-1][-1] == '#'
+            is_unigram_onset = len(xs)==1 and len(xs[0])==1 and xs[0]=='#'
+            is_end = (xs[-1][-1]=='#') and (not is_unigram_onset)
             is_max_iter = i==(max_attempt-1)
             if is_end or is_max_iter:
                 if is_max_iter:
@@ -120,12 +126,14 @@ class LDL:
             df = concat_cues(df.Selected)
         return df
 
-    def save_matrices (self, directory, mats=None, add=''):
+    def save_matrices (self, directory, add='', mats=None, compress=True):
+        ext = '.csv.gz' if compress else '.csv'
         if mats is None:
             mats = ['cmat','smat','fmat','gmat','vmat','shat','chat']
         for i in mats:
             if hasattr(self, i):
-                lm.save_mat_as_csv(getattr(self, i), directory=directory, stem=i, add=add)
+                path = directory + '/' + i + add + ext
+                lm.save_mat(getattr(self, i), path)
             else:
                 pass
         return None
@@ -133,8 +141,17 @@ class LDL:
     def load_matrices (self, directory, add=''):
         mats = ['cmat','smat','fmat','gmat','vmat','shat','chat']
         for i in mats:
-            mat = lm.load_mat_from_csv(directory=directory, stem=i, add=add)
-            setattr(self, i, mat)
+            path_gz = Path(directory+'/'+i+add+'.csv.gz')
+            path_csv = Path(directory+'/'+i+add+'.csv')
+            if path_gz.exists:
+                path = path_gz
+            elif path_csv.exists:
+                path = path_csv
+            else:
+                continue
+            mat = lm.load_mat(str(path))
+            path = re.sub(r'\..+$', '', path.name).replace(add, '')
+            setattr(self, path, mat)
         return None
 
     def accuracy (self, method='correlation', print_output=True):

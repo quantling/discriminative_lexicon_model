@@ -6,7 +6,7 @@ Incremental learning
 ---------------------------------------
 Incremental learning by a list of words
 ---------------------------------------
-Weight matrices in LDL (i.e., `\mathbf{F}` and `\mathbf{G}`) can be estimated also step by step, which is called the *incremental* learning. For a simple example, suppose we have only two words "a" and "an" in the lexicon and we encounter them in the order of "a", "a", "an", and "a". This can be done by discriminative_lexicon_model.mapping.incremental_learning. The first argument of the function is a series of learning events.
+Weight matrices in LDL (i.e., :math:`\mathbf{F}` and :math:`\mathbf{G}`) can be estimated also step by step, which is called the *incremental* learning. For a simple example, suppose we have only two words "a" and "an" in the lexicon and we encounter them in the order of "a", "a", "an", and "a". This can be done by discriminative_lexicon_model.mapping.incremental_learning. The first argument of the function is a series of learning events.
 
 .. code-block:: python
 
@@ -44,7 +44,7 @@ Weight matrices in LDL (i.e., `\mathbf{F}` and `\mathbf{G}`) can be estimated al
       * cues       (cues) <U2 32B '#a' 'a#' 'an' 'n#'
       * semantics  (semantics) <U2 24B 'S1' 'S2' 'S3'
 
-Note that the `\mathbf{S}` matrix is set up, so that the first dimension "S1" is strongly correlated with "a" while "S2" is correlated "an". In other words, you can conceptually interpret "S1" as the core meaning of "a" and "S2" as that of "an". In the weight matrix (i.e., `\mathbf{F}`), the first two rows, namely the cues "#a" and "a#" are strongly correlated with the first column, namely "S1". The last two rows, namely the cues "an" and "n#" are strongly correlated with the second column, namely "S2". The associations of "an" and "n#" to "S2" are numerically smaller than those of "#a" and "a#" to "S1", because "an" occurs only once while "a" occurs three times in the learning events.
+Note that the :math:`\mathbf{S}` matrix is set up, so that the first dimension "S1" is strongly correlated with "a" while "S2" is correlated "an". In other words, you can conceptually interpret "S1" as the core meaning of "a" and "S2" as that of "an". In the weight matrix (i.e., :math:`\mathbf{F}`), the first two rows, namely the cues "#a" and "a#" are strongly correlated with the first column, namely "S1". The last two rows, namely the cues "an" and "n#" are strongly correlated with the second column, namely "S2". The associations of "an" and "n#" to "S2" are numerically smaller than those of "#a" and "a#" to "S1", because "an" occurs only once while "a" occurs three times in the learning events.
 
 As shown below, after a sufficient number of learning events, the estimates approximate those by the *endstate* learning.
 
@@ -115,7 +115,7 @@ In contrast, in the latter case, where "an" is encountered first for 100 times b
 ----------------------------------------------
 Incremental learning by a list of word indices
 ----------------------------------------------
-Learning events (i.e., which words to encounter) can be specified by indices of words as well. This can be useful when the `\mathbf{C}` and/or `\mathbf{S}` matrices contain duplicated word labels. Duplicated rows can be an issue when word tokens are involved. Consider the following example:
+Learning events (i.e., which words to encounter) can be specified by indices of words as well. This can be useful when the :math:`\mathbf{C}` and/or :math:`\mathbf{S}` matrices contain duplicated word labels. Duplicated rows can be an issue when word tokens are involved. Consider the following example:
 
 .. code-block:: python
 
@@ -142,7 +142,7 @@ Learning events (i.e., which words to encounter) can be specified by indices of 
       * word       (word) <U2 24B 'a' 'an' 'an'
       * semantics  (semantics) <U2 24B 'S1' 'S2' 'S3'
 
-Note that the word type "an" has two rows. Its form vectors are the same (i.e., the second and third rows of the `\mathbf{C}` matrix), while its semantic vectors are slightly different (i.e., the second and third rows of the `\mathbf{S}` matrix). You can view the different semantic vectors as different meanings of the same word in different contexts. In such a case like this, specifying learning events by a list of words like below would raise "InvalidIndexError", because the function cannot determine which semantic vector to use for "an" in this case.
+Note that the word type "an" has two rows. Its form vectors are the same (i.e., the second and third rows of the :math:`\mathbf{C}` matrix), while its semantic vectors are slightly different (i.e., the second and third rows of the :math:`\mathbf{S}` matrix). You can view the different semantic vectors as different meanings of the same word in different contexts. In such a case like this, specifying learning events by a list of words like below would raise "InvalidIndexError", because the function cannot determine which semantic vector to use for "an" in this case.
 
 .. code-block:: python
 
