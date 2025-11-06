@@ -87,7 +87,7 @@ class LDL:
             self.gen_shat()
         return None
 
-    def produce (self, gold, word=False, roundby=10, max_attempt=50, positive=False):
+    def produce (self, gold, word=False, roundby=10, max_attempt=50, positive=False, apply_vmat=True):
         if not isinstance(gold, np.ndarray):
             gold = np.array(gold)
         p = -1
@@ -99,7 +99,10 @@ class LDL:
             if positive:
                 s0[s0<0] = 0 # It may be necessary for a small lexicon with multi-hot matrices.
             s = gold - s0
-            g = np.matmul(self.gmat.values, np.diag(self.vmat.loc[self.vmat.current.values[p],:].values))
+            if apply_vmat:
+                g = np.matmul(self.gmat.values, np.diag(self.vmat.loc[self.vmat.current.values[p],:].values))
+            else:
+                g = self.gmat.values
             c_prod = np.matmul(s, g)
             # c_prod[c_prod<0] = 0  # It may be necessary for a small lexicon with multi-hot matrices.
             if (c_prod<=0).all():
@@ -109,7 +112,8 @@ class LDL:
                 c_comp[p] = c_comp[p] + 1
                 xs = xs + [self.cmat.cues.values[p]]
                 vecs = vecs + [c_prod.round(roundby)]
-            is_end = xs[-1][-1] == '#'
+            is_unigram_onset = len(xs)==1 and len(xs[0])==1 and xs[0]=='#'
+            is_end = (xs[-1][-1]=='#') and (not is_unigram_onset)
             is_max_iter = i==(max_attempt-1)
             if is_end or is_max_iter:
                 if is_max_iter:
