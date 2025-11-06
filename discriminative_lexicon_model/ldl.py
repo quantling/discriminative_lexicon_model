@@ -36,7 +36,7 @@ class LDL:
         if events is None:
             self.fmat = lm.gen_fmat(cmat=self.cmat, smat=self.smat)
         else:
-            isind = all([ isinstance(i, int) for i in events ])
+            isind = all([ isinstance(i, (int, np.integer)) for i in events ])
             if isind:
                 self.fmat = lm.incremental_learning_byind(events, self.cmat, self.smat)
             else:
@@ -47,7 +47,7 @@ class LDL:
         if events is None:
             self.gmat = lm.gen_gmat(cmat=self.cmat, smat=self.smat)
         else:
-            isind = all([ isinstance(i, int) for i in events ])
+            isind = all([ isinstance(i, (int, np.integer)) for i in events ])
             if isind:
                 self.gmat = lm.incremental_learning_byind(events, self.smat, self.cmat)
             else:
