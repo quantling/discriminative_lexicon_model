@@ -618,3 +618,18 @@ def load_csv (path):
     csv = [ i.rstrip('\n') for i in csv ]
     return csv
 
+def save_mat (xarr, path):
+    df = xarr.to_pandas()
+    _indname = not (df.index.name is None)
+    _colname = not (df.columns.name is None)
+    if _indname and _colname:
+        df.index.name = df.index.name + '/' + df.columns.name
+        df.columns.name = None
+    df.to_csv(path, sep='\t', index=True, header=True)
+    return None
+
+def load_mat (path):
+    df = pd.read_csv(path, sep='\t', index_col=0, header=0, na_filter=False, quoting=3)
+    df.index.name, df.columns.name = df.index.name.split('/')
+    xarr = xr.DataArray(df)
+    return xarr

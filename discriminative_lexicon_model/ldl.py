@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import re
+from pathlib import Path
 
 from . import mapping as lm
 from . import performance as lp
@@ -120,12 +122,14 @@ class LDL:
             df = concat_cues(df.Selected)
         return df
 
-    def save_matrices (self, directory, mats=None, add=''):
+    def save_matrices (self, directory, add='', mats=None, compress=True):
+        ext = '.csv.gz' if compress else '.csv'
         if mats is None:
             mats = ['cmat','smat','fmat','gmat','vmat','shat','chat']
         for i in mats:
             if hasattr(self, i):
-                lm.save_mat_as_csv(getattr(self, i), directory=directory, stem=i, add=add)
+                path = directory + '/' + i + add + ext
+                lm.save_mat(getattr(self, i), path)
             else:
                 pass
         return None
@@ -133,8 +137,17 @@ class LDL:
     def load_matrices (self, directory, add=''):
         mats = ['cmat','smat','fmat','gmat','vmat','shat','chat']
         for i in mats:
-            mat = lm.load_mat_from_csv(directory=directory, stem=i, add=add)
-            setattr(self, i, mat)
+            path_gz = Path(directory+'/'+i+add+'.csv.gz')
+            path_csv = Path(directory+'/'+i+add+'.csv')
+            if path_gz.exists:
+                path = path_gz
+            elif path_csv.exists:
+                path = path_csv
+            else:
+                continue
+            mat = lm.load_mat(str(path))
+            path = re.sub(r'\..+$', '', path.name).replace(add, '')
+            setattr(self, path, mat)
         return None
 
     def accuracy (self, method='correlation', print_output=True):
