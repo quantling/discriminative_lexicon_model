@@ -10,6 +10,11 @@ from tqdm import tqdm
 
 from . import mapping as lmap
 
+try:
+    import torch
+except ImportError:
+    torch = None
+
 def to_cues (words, gram=3):
     words = [ '#' + i + '#'for i in words ]
     words = [ i.ljust(max([ len(i) for i in words ]), ' ') for i in words ]
@@ -409,7 +414,73 @@ def gen_chat (smat=None, gmat=None, cmat=None, hmat=None):
         raise ValueError('(S, G), (S, C), or (H, C) is necessary.')
     return chat
 
-def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False):
+def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False, backend='numpy', device=None):
+    """
+    Incremental learning with optional GPU acceleration.
+
+    Parameters
+    ----------
+    rows : list-like
+        Row labels.
+    cue_matrix : xarray.DataArray
+    out_matrix : xarray.DataArray
+    learning_rate : float
+    weight_matrix : xarray.DataArray or None
+    return_intermediate_weights : bool
+    backend : {'numpy', 'torch', 'auto'}
+        'numpy' -> original NumPy/xarray CPU implementation.
+        'torch' -> PyTorch implementation (CPU/GPU depending on 'device').
+        'auto'  -> try torch+CUDA if available, else fall back to NumPy.
+    device : str or None
+        For the torch backend: 'cuda', 'cpu', etc. If None and backend is
+        'torch' or 'auto', chooses 'cuda' if available, else 'cpu'.
+    """
+    if backend == 'numpy':
+        return _incremental_learning_numpy(
+            rows,
+            cue_matrix,
+            out_matrix,
+            learning_rate=learning_rate,
+            weight_matrix=weight_matrix,
+            return_intermediate_weights=return_intermediate_weights,
+        )
+
+    if backend == 'torch':
+        return _incremental_learning_torch(
+            rows,
+            cue_matrix,
+            out_matrix,
+            learning_rate=learning_rate,
+            weight_matrix=weight_matrix,
+            return_intermediate_weights=return_intermediate_weights,
+            device=device,
+        )
+
+    if backend == 'auto':
+        # Prefer torch+CUDA if possible
+        if (torch is not None) and (device == 'cuda' or (device is None and torch.cuda.is_available())):
+            return _incremental_learning_torch(
+                rows,
+                cue_matrix,
+                out_matrix,
+                learning_rate=learning_rate,
+                weight_matrix=weight_matrix,
+                return_intermediate_weights=return_intermediate_weights,
+                device=device or 'cuda',
+            )
+        else:
+            return _incremental_learning_numpy(
+                rows,
+                cue_matrix,
+                out_matrix,
+                learning_rate=learning_rate,
+                weight_matrix=weight_matrix,
+                return_intermediate_weights=return_intermediate_weights,
+            )
+
+    raise ValueError(f'Unknown backend "{backend}". Use "numpy", "torch", or "auto".')
+
+def _incremental_learning_numpy (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False):
     if weight_matrix is None:
         _dims = (cue_matrix.dims[1], out_matrix.dims[1])
         _coords = {_dims[0]: cue_matrix[_dims[0]].values.tolist(), _dims[1]: out_matrix[_dims[1]].values.tolist()}
@@ -429,6 +500,80 @@ def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weigh
     else:
         res = weight_matrix
     return res
+
+def _incremental_learning_torch (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False, device=None):
+
+    if torch is None:
+        raise ImportError('PyTorch is not installed. Install it to use the "torch" backend.')
+
+    if device is None:
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    makesure_xarray(cue_matrix, out_matrix)
+
+    word_dim = cue_matrix.dims[0]
+    cue_dim = cue_matrix.dims[1]
+    out_dim = out_matrix.dims[1]
+
+    words = cue_matrix[word_dim].values
+    cues = cue_matrix[cue_dim].values
+    outs = out_matrix[out_dim].values
+
+    # Map row labels to integer indices:
+    word_index = {w: idx for idx, w in enumerate(words)}
+
+    # Move data to torch:
+    cue_tensor = torch.as_tensor(cue_matrix.values, dtype=torch.float32, device=device)
+    out_tensor = torch.as_tensor(out_matrix.values, dtype=torch.float32, device=device)
+
+    if weight_matrix is None:
+        weight_tensor = torch.zeros((cue_tensor.shape[1], out_tensor.shape[1]), dtype=torch.float32, device=device)
+    else:
+        makesure_xarray(weight_matrix)
+        weight_tensor = torch.as_tensor(weight_matrix.values, dtype=torch.float32, device=device)
+
+    if return_intermediate_weights:
+        weight_mats = [
+            xr.DataArray(
+                weight_tensor.detach().cpu().numpy(),
+                dims=(cue_dim, out_dim),
+                coords={cue_dim: cues, out_dim: outs},
+            )
+        ]
+
+    lr = learning_rate
+
+    for row_label in tqdm(rows):
+        idx = word_index[row_label]
+
+        cvec = cue_tensor[idx : idx + 1, :]
+        ovec = out_tensor[idx : idx + 1, :]
+
+        pred = cvec @ weight_tensor       # (1, n_out)
+        dlt = ovec - pred                 # (1, n_out)
+        grad = cvec.transpose(0, 1) @ dlt # (n_cues, n_out)
+
+        weight_tensor = weight_tensor + lr * grad
+
+        if return_intermediate_weights:
+            weight_mats.append(
+                xr.DataArray(
+                    weight_tensor.detach().cpu().numpy(),
+                    dims=(cue_dim, out_dim),
+                    coords={cue_dim: cues, out_dim: outs},
+                )
+            )
+
+    final_weight = xr.DataArray(
+        weight_tensor.detach().cpu().numpy(),
+        dims=(cue_dim, out_dim),
+        coords={cue_dim: cues, out_dim: outs},
+    )
+
+    if return_intermediate_weights:
+        return weight_mats
+    else:
+        return final_weight
 
 def incremental_learning_byind (events, cue_matrix, out_matrix):
     _dims = (cue_matrix.dims[1], out_matrix.dims[1])
