@@ -143,9 +143,9 @@ class LDL:
         for i in mats:
             path_gz = Path(directory+'/'+i+add+'.csv.gz')
             path_csv = Path(directory+'/'+i+add+'.csv')
-            if path_gz.exists:
+            if path_gz.exists():
                 path = path_gz
-            elif path_csv.exists:
+            elif path_csv.exists():
                 path = path_csv
             else:
                 continue
