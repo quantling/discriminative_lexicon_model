@@ -93,16 +93,24 @@ class LDL:
         p = -1
         xs = []
         vecs = []
-        c_comp = np.zeros(self.cmat.cues.values.size)
+        cues_values = self.cmat.cues.values
+        fmat_values = self.fmat.values
+        gmat_values = self.gmat.values
+        if apply_vmat:
+            vmat_values = self.vmat.values
+            vmat_current_values = self.vmat.current.values
+        c_comp = np.zeros(cues_values.size)
         for i in range(max_attempt):
-            s0 = np.matmul(c_comp, self.fmat.values)
+            s0 = np.matmul(c_comp, fmat_values)
             if positive:
                 s0[s0<0] = 0 # It may be necessary for a small lexicon with multi-hot matrices.
             s = gold - s0
             if apply_vmat:
-                g = np.matmul(self.gmat.values, np.diag(self.vmat.loc[self.vmat.current.values[p],:].values))
+                # Element-wise multiplication instead of np.diag() matrix multiplication
+                vmat_row = vmat_values[p]
+                g = gmat_values * vmat_row
             else:
-                g = self.gmat.values
+                g = gmat_values
             c_prod = np.matmul(s, g)
             # c_prod[c_prod<0] = 0  # It may be necessary for a small lexicon with multi-hot matrices.
             if (c_prod<=0).all():
@@ -110,8 +118,8 @@ class LDL:
             else:
                 p = np.argmax(c_prod)
                 c_comp[p] = c_comp[p] + 1
-                xs = xs + [self.cmat.cues.values[p]]
-                vecs = vecs + [c_prod.round(roundby)]
+                xs.append(cues_values[p])
+                vecs.append(c_prod)
             is_unigram_onset = len(xs)==1 and len(xs[0])==1 and xs[0]=='#'
             is_end = (xs[-1][-1]=='#') and (not is_unigram_onset)
             is_max_iter = i==(max_attempt-1)
@@ -119,7 +127,9 @@ class LDL:
                 if is_max_iter:
                     print('The maximum number of iterations ({:d}) reached.'.format(max_attempt))
                 break
-        df = pd.DataFrame(vecs).rename(columns={ i:j for i,j in enumerate(self.cmat.cues.values) })
+        # Round vectors only at the end, not in every iteration
+        vecs = [v.round(roundby) for v in vecs]
+        df = pd.DataFrame(vecs).rename(columns={ i:j for i,j in enumerate(cues_values) })
         hdr = pd.Series(xs).to_frame(name='Selected')
         df = pd.concat([hdr, df], axis=1)
         if word:
