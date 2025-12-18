@@ -5,6 +5,14 @@ from pathlib import Path
 import xarray as xr
 from discriminative_lexicon_model.ldl import LDL, concat_cues, is_consecutive
 
+try:
+    import torch
+    HAS_TORCH = True
+    HAS_CUDA = torch.cuda.is_available()
+except ImportError:
+    HAS_TORCH = False
+    HAS_CUDA = False
+
 TEST_ROOT = Path('.')
 RESOURCES = TEST_ROOT / 'resources'
 
@@ -247,3 +255,277 @@ class TestProduceIntegration:
         if len(result_df) > 0 and result_df['Selected'].iloc[-1].endswith('#'):
             manual_word = concat_cues(result_df['Selected'])
             assert result_word == manual_word
+
+
+class TestProduceBackend:
+    """Tests for produce backend parameter."""
+
+    def test_produce_numpy_backend(self, ldl_with_matrices):
+        """Test produce with explicit NumPy backend."""
+        gold = np.array([1, 1])
+        result = ldl_with_matrices.produce(gold, backend='numpy')
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+        assert 'Selected' in result.columns
+
+    def test_produce_auto_backend(self, ldl_with_matrices):
+        """Test produce with auto backend (default)."""
+        gold = np.array([1, 1])
+        result = ldl_with_matrices.produce(gold, backend='auto')
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+        assert 'Selected' in result.columns
+
+    def test_produce_default_backend_is_auto(self, ldl_with_matrices):
+        """Test that default backend is 'auto'."""
+        gold = np.array([1, 1])
+        result_default = ldl_with_matrices.produce(gold)
+        result_auto = ldl_with_matrices.produce(gold, backend='auto')
+        # Should produce identical results
+        assert list(result_default['Selected']) == list(result_auto['Selected'])
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_produce_torch_backend(self, ldl_with_matrices):
+        """Test produce with PyTorch backend."""
+        gold = np.array([1, 1])
+        result = ldl_with_matrices.produce(gold, backend='torch')
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+        assert 'Selected' in result.columns
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_produce_torch_cpu_device(self, ldl_with_matrices):
+        """Test produce with PyTorch backend on CPU."""
+        gold = np.array([1, 1])
+        result = ldl_with_matrices.produce(gold, backend='torch', device='cpu')
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+
+    @pytest.mark.skipif(not HAS_CUDA, reason="CUDA not available")
+    def test_produce_torch_cuda_device(self, ldl_with_matrices):
+        """Test produce with PyTorch backend on CUDA."""
+        gold = np.array([1, 1])
+        result = ldl_with_matrices.produce(gold, backend='torch', device='cuda')
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+
+    def test_produce_invalid_backend(self, ldl_with_matrices):
+        """Test that invalid backend raises ValueError."""
+        gold = np.array([1, 1])
+        with pytest.raises(ValueError, match='Unknown backend'):
+            ldl_with_matrices.produce(gold, backend='invalid_backend')
+
+    @pytest.mark.skipif(HAS_TORCH, reason="Test requires PyTorch to be unavailable")
+    def test_produce_torch_backend_without_torch(self, ldl_with_matrices):
+        """Test that torch backend raises ImportError when PyTorch is not installed."""
+        gold = np.array([1, 1])
+        with pytest.raises(ImportError, match='PyTorch is not installed'):
+            ldl_with_matrices.produce(gold, backend='torch')
+
+
+class TestProduceBackendConsistency:
+    """Tests for consistency across different backends."""
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_numpy_vs_torch_cpu_consistency(self, ldl_with_matrices):
+        """Test that NumPy and PyTorch CPU backends produce identical results."""
+        gold = np.array([1, 1])
+        result_numpy = ldl_with_matrices.produce(gold, backend='numpy')
+        result_torch = ldl_with_matrices.produce(gold, backend='torch', device='cpu')
+
+        # Selected cues should be identical
+        assert list(result_numpy['Selected']) == list(result_torch['Selected'])
+
+        # Number of rows should be identical
+        assert len(result_numpy) == len(result_torch)
+
+    @pytest.mark.skipif(not HAS_CUDA, reason="CUDA not available")
+    def test_numpy_vs_torch_cuda_consistency(self, ldl_with_matrices):
+        """Test that NumPy and PyTorch CUDA backends produce identical results."""
+        gold = np.array([1, 1])
+        result_numpy = ldl_with_matrices.produce(gold, backend='numpy')
+        result_cuda = ldl_with_matrices.produce(gold, backend='torch', device='cuda')
+
+        # Selected cues should be identical
+        assert list(result_numpy['Selected']) == list(result_cuda['Selected'])
+
+        # Number of rows should be identical
+        assert len(result_numpy) == len(result_cuda)
+
+    @pytest.mark.skipif(not HAS_CUDA, reason="CUDA not available")
+    def test_torch_cpu_vs_cuda_consistency(self, ldl_with_matrices):
+        """Test that PyTorch CPU and CUDA backends produce identical results."""
+        gold = np.array([1, 1])
+        result_cpu = ldl_with_matrices.produce(gold, backend='torch', device='cpu')
+        result_cuda = ldl_with_matrices.produce(gold, backend='torch', device='cuda')
+
+        # Selected cues should be identical
+        assert list(result_cpu['Selected']) == list(result_cuda['Selected'])
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_all_parameters_with_backends(self, ldl_with_matrices):
+        """Test that all produce parameters work consistently across backends."""
+        gold = np.array([1, 2])
+
+        # Test with various parameter combinations
+        params = {
+            'word': False,
+            'roundby': 5,
+            'max_attempt': 30,
+            'positive': True,
+            'apply_vmat': True
+        }
+
+        result_numpy = ldl_with_matrices.produce(gold, backend='numpy', **params)
+        result_torch = ldl_with_matrices.produce(gold, backend='torch', device='cpu', **params)
+
+        assert list(result_numpy['Selected']) == list(result_torch['Selected'])
+
+
+class TestProduceBackendWithVmat:
+    """Tests for backend parameter interaction with vmat."""
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_torch_backend_with_vmat_true(self, ldl_with_matrices):
+        """Test PyTorch backend with apply_vmat=True."""
+        gold = np.array([1, 1])
+        result = ldl_with_matrices.produce(gold, backend='torch', apply_vmat=True)
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_torch_backend_with_vmat_false(self, ldl_with_matrices):
+        """Test PyTorch backend with apply_vmat=False."""
+        gold = np.array([1, 1])
+        result = ldl_with_matrices.produce(gold, backend='torch', apply_vmat=False)
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_vmat_consistency_across_backends(self, ldl_with_matrices):
+        """Test that vmat behavior is consistent across backends."""
+        gold = np.array([1, 1])
+
+        # With vmat
+        result_numpy_vmat = ldl_with_matrices.produce(gold, backend='numpy', apply_vmat=True)
+        result_torch_vmat = ldl_with_matrices.produce(gold, backend='torch', apply_vmat=True)
+        assert list(result_numpy_vmat['Selected']) == list(result_torch_vmat['Selected'])
+
+        # Without vmat
+        result_numpy_no_vmat = ldl_with_matrices.produce(gold, backend='numpy', apply_vmat=False)
+        result_torch_no_vmat = ldl_with_matrices.produce(gold, backend='torch', apply_vmat=False)
+        assert list(result_numpy_no_vmat['Selected']) == list(result_torch_no_vmat['Selected'])
+
+
+class TestProduceBackendWithPositive:
+    """Tests for backend parameter interaction with positive parameter."""
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_torch_backend_positive_true(self, ldl_with_matrices):
+        """Test PyTorch backend with positive=True."""
+        gold = np.array([1, 1])
+        result = ldl_with_matrices.produce(gold, backend='torch', positive=True)
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_positive_consistency_across_backends(self, ldl_with_matrices):
+        """Test that positive parameter behaves consistently across backends."""
+        gold = np.array([1, 1])
+
+        result_numpy = ldl_with_matrices.produce(gold, backend='numpy', positive=True)
+        result_torch = ldl_with_matrices.produce(gold, backend='torch', positive=True)
+
+        assert list(result_numpy['Selected']) == list(result_torch['Selected'])
+
+
+class TestProduceBackendWithWord:
+    """Tests for backend parameter interaction with word parameter."""
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_torch_backend_word_true(self, ldl_with_matrices):
+        """Test PyTorch backend with word=True returns string."""
+        gold = np.array([1, 1])
+        result = ldl_with_matrices.produce(gold, backend='torch', word=True)
+        assert isinstance(result, str)
+        assert result.startswith('#')
+        assert result.endswith('#')
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_word_consistency_across_backends(self, ldl_with_matrices):
+        """Test that word=True produces identical results across backends."""
+        gold = np.array([1, 1])
+
+        result_numpy = ldl_with_matrices.produce(gold, backend='numpy', word=True)
+        result_torch = ldl_with_matrices.produce(gold, backend='torch', word=True)
+
+        assert result_numpy == result_torch
+
+
+class TestProduceBackendEdgeCases:
+    """Edge case tests for produce with different backends."""
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_torch_zero_vector(self, ldl_with_matrices):
+        """Test PyTorch backend with zero semantic vector."""
+        gold = np.array([0, 0])
+        result = ldl_with_matrices.produce(gold, backend='torch')
+        assert isinstance(result, pd.DataFrame)
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_torch_negative_vector(self, ldl_with_matrices):
+        """Test PyTorch backend with negative semantic vector."""
+        gold = np.array([-1, -1])
+        result = ldl_with_matrices.produce(gold, backend='torch')
+        assert isinstance(result, pd.DataFrame)
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_torch_max_attempt_one(self, ldl_with_matrices, capsys):
+        """Test PyTorch backend with max_attempt=1."""
+        gold = np.array([1, 2])
+        result = ldl_with_matrices.produce(gold, backend='torch', max_attempt=1)
+        assert len(result) <= 1
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_torch_list_input(self, ldl_with_matrices):
+        """Test that PyTorch backend accepts list input for gold vector."""
+        gold = [1, 1]
+        result = ldl_with_matrices.produce(gold, backend='torch')
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+
+
+class TestProduceAutoBackendSelection:
+    """Tests for auto backend selection logic."""
+
+    def test_auto_backend_falls_back_to_numpy_without_torch(self, ldl_with_matrices):
+        """Test that auto backend works even without PyTorch."""
+        gold = np.array([1, 1])
+        # Should not raise an error, will use numpy backend
+        result = ldl_with_matrices.produce(gold, backend='auto')
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_auto_backend_uses_torch_when_available(self, ldl_with_matrices):
+        """Test that auto backend uses PyTorch when available."""
+        gold = np.array([1, 1])
+        result_auto = ldl_with_matrices.produce(gold, backend='auto')
+
+        # If CUDA is available, auto should use it
+        if HAS_CUDA:
+            # Result should be identical to torch+cuda
+            result_cuda = ldl_with_matrices.produce(gold, backend='torch', device='cuda')
+            assert list(result_auto['Selected']) == list(result_cuda['Selected'])
+        else:
+            # Result should be identical to numpy (fallback)
+            result_numpy = ldl_with_matrices.produce(gold, backend='numpy')
+            assert list(result_auto['Selected']) == list(result_numpy['Selected'])
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_auto_backend_device_none_defaults_correctly(self, ldl_with_matrices):
+        """Test that device=None with auto backend defaults correctly."""
+        gold = np.array([1, 1])
+        result = ldl_with_matrices.produce(gold, backend='auto', device=None)
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0

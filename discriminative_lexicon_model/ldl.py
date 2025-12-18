@@ -6,6 +6,11 @@ from pathlib import Path
 from . import mapping as lm
 from . import performance as lp
 
+try:
+    import torch
+except ImportError:
+    torch = None
+
 class LDL:
     def __init__ (self, words=None, embed_or_df=None, cmat=False, smat=False,
             fmat=False, gmat=False, vmat=False, chat=False, shat=False,
@@ -87,19 +92,68 @@ class LDL:
             self.gen_shat()
         return None
 
-    def produce (self, gold, word=False, roundby=10, max_attempt=50, positive=False, apply_vmat=True):
+    def produce (self, gold, word=False, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None):
+        """
+        Produce output using discriminative learning.
+
+        Parameters
+        ----------
+        gold : array-like
+            The target semantic vector.
+        word : bool
+            If True, concatenate cues to form words.
+        roundby : int
+            Number of decimal places to round vectors.
+        max_attempt : int
+            Maximum number of iterations.
+        positive : bool
+            If True, set negative values to zero.
+        apply_vmat : bool
+            If True, apply validity matrix.
+        backend : {'numpy', 'torch', 'auto'}
+            'numpy' -> NumPy CPU implementation.
+            'torch' -> PyTorch implementation (CPU/GPU depending on 'device').
+            'auto'  -> Try torch+CUDA if available, else fall back to NumPy.
+        device : str or None
+            For torch backend: 'cuda', 'cpu', etc. If None and backend is
+            'torch' or 'auto', chooses 'cuda' if available, else 'cpu'.
+        """
+        # Determine which backend to use
+        use_torch = False
+        if backend == 'torch':
+            if torch is None:
+                raise ImportError('PyTorch is not installed. Install it to use the "torch" backend.')
+            use_torch = True
+            if device is None:
+                device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        elif backend == 'auto':
+            if torch is not None and (device == 'cuda' or (device is None and torch.cuda.is_available())):
+                use_torch = True
+                device = device or 'cuda'
+        elif backend != 'numpy':
+            raise ValueError(f'Unknown backend "{backend}". Use "numpy", "torch", or "auto".')
+
+        if use_torch:
+            return self._produce_torch(gold, word, roundby, max_attempt, positive, apply_vmat, device)
+        else:
+            return self._produce_numpy(gold, word, roundby, max_attempt, positive, apply_vmat)
+
+    def _produce_numpy (self, gold, word, roundby, max_attempt, positive, apply_vmat):
+        """NumPy implementation of produce (original CPU version)."""
         if not isinstance(gold, np.ndarray):
-            gold = np.array(gold)
+            gold = np.array(gold, dtype=np.float32)
+        else:
+            gold = gold.astype(np.float32)
         p = -1
         xs = []
         vecs = []
         cues_values = self.cmat.cues.values
-        fmat_values = self.fmat.values
-        gmat_values = self.gmat.values
+        fmat_values = self.fmat.values.astype(np.float32)
+        gmat_values = self.gmat.values.astype(np.float32)
         if apply_vmat:
-            vmat_values = self.vmat.values
+            vmat_values = self.vmat.values.astype(np.float32)
             vmat_current_values = self.vmat.current.values
-        c_comp = np.zeros(cues_values.size)
+        c_comp = np.zeros(cues_values.size, dtype=np.float32)
         for i in range(max_attempt):
             s0 = np.matmul(c_comp, fmat_values)
             if positive:
@@ -127,6 +181,68 @@ class LDL:
                 if is_max_iter:
                     print('The maximum number of iterations ({:d}) reached.'.format(max_attempt))
                 break
+        # Round vectors only at the end, not in every iteration
+        vecs = [v.round(roundby) for v in vecs]
+        df = pd.DataFrame(vecs).rename(columns={ i:j for i,j in enumerate(cues_values) })
+        hdr = pd.Series(xs).to_frame(name='Selected')
+        df = pd.concat([hdr, df], axis=1)
+        if word:
+            df = concat_cues(df.Selected)
+        return df
+
+    def _produce_torch (self, gold, word, roundby, max_attempt, positive, apply_vmat, device):
+        """PyTorch implementation of produce with GPU support."""
+        if not isinstance(gold, np.ndarray):
+            gold = np.array(gold)
+
+        # Move data to torch tensors on specified device
+        gold_tensor = torch.as_tensor(gold, dtype=torch.float32, device=device)
+        fmat_tensor = torch.as_tensor(self.fmat.values, dtype=torch.float32, device=device)
+        gmat_tensor = torch.as_tensor(self.gmat.values, dtype=torch.float32, device=device)
+
+        if apply_vmat:
+            vmat_tensor = torch.as_tensor(self.vmat.values, dtype=torch.float32, device=device)
+
+        cues_values = self.cmat.cues.values
+        c_comp = torch.zeros(cues_values.size, dtype=torch.float32, device=device)
+
+        p = -1
+        xs = []
+        vecs = []
+
+        for i in range(max_attempt):
+            s0 = torch.matmul(c_comp, fmat_tensor)
+            if positive:
+                s0 = torch.clamp(s0, min=0)
+            s = gold_tensor - s0
+
+            if apply_vmat:
+                # Element-wise multiplication with vmat row
+                vmat_row = vmat_tensor[p]
+                g = gmat_tensor * vmat_row
+            else:
+                g = gmat_tensor
+
+            c_prod = torch.matmul(s, g)
+
+            # Check if all values are <= 0
+            if (c_prod <= 0).all():
+                break
+            else:
+                p = torch.argmax(c_prod).item()
+                c_comp[p] = c_comp[p] + 1
+                xs.append(cues_values[p])
+                # Convert to numpy for storage
+                vecs.append(c_prod.detach().cpu().numpy())
+
+            is_unigram_onset = len(xs)==1 and len(xs[0])==1 and xs[0]=='#'
+            is_end = (xs[-1][-1]=='#') and (not is_unigram_onset)
+            is_max_iter = i==(max_attempt-1)
+            if is_end or is_max_iter:
+                if is_max_iter:
+                    print('The maximum number of iterations ({:d}) reached.'.format(max_attempt))
+                break
+
         # Round vectors only at the end, not in every iteration
         vecs = [v.round(roundby) for v in vecs]
         df = pd.DataFrame(vecs).rename(columns={ i:j for i,j in enumerate(cues_values) })
