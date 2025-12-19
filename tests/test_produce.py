@@ -529,3 +529,147 @@ class TestProduceAutoBackendSelection:
         result = ldl_with_matrices.produce(gold, backend='auto', device=None)
         assert isinstance(result, pd.DataFrame)
         assert len(result) > 0
+
+
+class TestProduceBatch:
+    """Tests for the LDL.produce_batch() method (Phase 2 optimization)."""
+
+    def test_produce_batch_returns_list(self, ldl_with_matrices):
+        """Test that produce_batch returns a list of DataFrames."""
+        gold_batch = np.array([[1, 1], [1, 2]])
+        result = ldl_with_matrices.produce_batch(gold_batch, backend='numpy')
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert all(isinstance(df, pd.DataFrame) for df in result)
+
+    def test_produce_batch_has_selected_columns(self, ldl_with_matrices):
+        """Test that each DataFrame in batch has 'Selected' column."""
+        gold_batch = np.array([[1, 1], [1, 2]])
+        result = ldl_with_matrices.produce_batch(gold_batch, backend='numpy')
+        for df in result:
+            assert 'Selected' in df.columns
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_produce_batch_torch_backend(self, ldl_with_matrices):
+        """Test produce_batch with PyTorch backend."""
+        gold_batch = np.array([[1, 1], [1, 2]])
+        result = ldl_with_matrices.produce_batch(gold_batch, backend='torch')
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert all(isinstance(df, pd.DataFrame) for df in result)
+
+    @pytest.mark.skipif(not HAS_CUDA, reason="CUDA not available")
+    def test_produce_batch_torch_cuda(self, ldl_with_matrices):
+        """Test produce_batch with PyTorch CUDA backend."""
+        gold_batch = np.array([[1, 1], [1, 2]])
+        result = ldl_with_matrices.produce_batch(gold_batch, backend='torch', device='cuda')
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert all(isinstance(df, pd.DataFrame) for df in result)
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_produce_batch_consistency_with_single(self, ldl_with_matrices):
+        """Test that batch processing produces same results as single processing."""
+        gold1 = np.array([1, 1])
+        gold2 = np.array([1, 2])
+        gold_batch = np.array([gold1, gold2])
+
+        # Single processing
+        result_single1 = ldl_with_matrices.produce(gold1, backend='torch', device='cpu')
+        result_single2 = ldl_with_matrices.produce(gold2, backend='torch', device='cpu')
+
+        # Batch processing
+        result_batch = ldl_with_matrices.produce_batch(gold_batch, backend='torch', device='cpu')
+
+        # Compare results
+        assert list(result_single1['Selected']) == list(result_batch[0]['Selected'])
+        assert list(result_single2['Selected']) == list(result_batch[1]['Selected'])
+
+    @pytest.mark.skipif(not HAS_CUDA, reason="CUDA not available")
+    def test_produce_batch_cuda_consistency_with_single(self, ldl_with_matrices):
+        """Test that CUDA batch processing produces same results as single processing."""
+        gold1 = np.array([1, 1])
+        gold2 = np.array([1, 2])
+        gold_batch = np.array([gold1, gold2])
+
+        # Single processing on CUDA
+        result_single1 = ldl_with_matrices.produce(gold1, backend='torch', device='cuda')
+        result_single2 = ldl_with_matrices.produce(gold2, backend='torch', device='cuda')
+
+        # Batch processing on CUDA
+        result_batch = ldl_with_matrices.produce_batch(gold_batch, backend='torch', device='cuda')
+
+        # Compare results
+        assert list(result_single1['Selected']) == list(result_batch[0]['Selected'])
+        assert list(result_single2['Selected']) == list(result_batch[1]['Selected'])
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_produce_batch_with_word_parameter(self, ldl_with_matrices):
+        """Test produce_batch with word=True parameter."""
+        gold_batch = np.array([[1, 1], [1, 2]])
+        result = ldl_with_matrices.produce_batch(gold_batch, backend='torch', word=True)
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert all(isinstance(w, str) for w in result)
+        assert all(w.startswith('#') and w.endswith('#') for w in result)
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_produce_batch_with_vmat(self, ldl_with_matrices):
+        """Test produce_batch with apply_vmat parameter."""
+        gold_batch = np.array([[1, 1], [1, 2]])
+        result_with_vmat = ldl_with_matrices.produce_batch(gold_batch, backend='torch', apply_vmat=True)
+        result_without_vmat = ldl_with_matrices.produce_batch(gold_batch, backend='torch', apply_vmat=False)
+
+        assert len(result_with_vmat) == 2
+        assert len(result_without_vmat) == 2
+        assert all(isinstance(df, pd.DataFrame) for df in result_with_vmat)
+        assert all(isinstance(df, pd.DataFrame) for df in result_without_vmat)
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_produce_batch_with_positive(self, ldl_with_matrices):
+        """Test produce_batch with positive parameter."""
+        gold_batch = np.array([[1, 1], [1, 2]])
+        result = ldl_with_matrices.produce_batch(gold_batch, backend='torch', positive=True)
+        assert len(result) == 2
+        assert all(isinstance(df, pd.DataFrame) for df in result)
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_produce_batch_with_custom_max_attempt(self, ldl_with_matrices):
+        """Test produce_batch with custom max_attempt."""
+        gold_batch = np.array([[1, 1], [1, 2]])
+        result = ldl_with_matrices.produce_batch(gold_batch, backend='torch', max_attempt=100)
+        assert len(result) == 2
+        assert all(isinstance(df, pd.DataFrame) for df in result)
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_produce_batch_empty(self, ldl_with_matrices):
+        """Test produce_batch with empty batch."""
+        gold_batch = np.array([]).reshape(0, 2)
+        result = ldl_with_matrices.produce_batch(gold_batch, backend='torch')
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_produce_batch_single_item(self, ldl_with_matrices):
+        """Test produce_batch with single item."""
+        gold_batch = np.array([[1, 1]])
+        result = ldl_with_matrices.produce_batch(gold_batch, backend='torch')
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert isinstance(result[0], pd.DataFrame)
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_produce_batch_with_batch_size(self, ldl_with_matrices):
+        """Test produce_batch with batch_size parameter for chunked processing."""
+        gold_batch = np.array([[1, 1], [1, 2], [1, 1], [1, 2]])
+        result = ldl_with_matrices.produce_batch(gold_batch, backend='torch', batch_size=2)
+        assert len(result) == 4
+        assert all(isinstance(df, pd.DataFrame) for df in result)
+
+    def test_produce_batch_numpy_fallback(self, ldl_with_matrices):
+        """Test that numpy backend falls back to sequential processing."""
+        gold_batch = np.array([[1, 1], [1, 2]])
+        result = ldl_with_matrices.produce_batch(gold_batch, backend='numpy')
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert all(isinstance(df, pd.DataFrame) for df in result)
