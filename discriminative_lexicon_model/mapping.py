@@ -318,9 +318,9 @@ def gen_jmat (mmat, dim_size, mn=0, sd=1, seed=None):
 
 def gen_fmat (cmat, smat):
     if isinstance(cmat, xr.DataArray) and isinstance(smat, xr.DataArray):
-        rname = list(cmat.coords)[1]
+        rname = cmat.dims[1]
         rvals = cmat[rname]
-        cname = list(smat.coords)[1]
+        cname = smat.dims[1]
         cvals = smat[cname]
     if not all([ isinstance(i, np.ndarray) for i in [cmat, smat] ]):
         cmat = np.array(cmat)
@@ -331,9 +331,9 @@ def gen_fmat (cmat, smat):
 
 def gen_gmat (cmat, smat):
     if isinstance(cmat, xr.DataArray) and isinstance(smat, xr.DataArray):
-        rname = list(smat.coords)[1]
+        rname = smat.dims[1]
         rvals = smat[rname]
-        cname = list(cmat.coords)[1]
+        cname = cmat.dims[1]
         cvals = cmat[cname]
     if not all([ isinstance(i, np.ndarray) for i in [cmat, smat] ]):
         cmat = np.array(cmat)
