@@ -24,9 +24,10 @@ def to_cues (words, gram=3):
     cues = list(dict.fromkeys(cues))
     return cues
 
-def gen_vmat (words, gram=3):
-    cues = to_cues(words, gram=gram)
-    gram = infer_gram(cues)
+def gen_vmat (words, gram=3, cues=None):
+    if cues is None:
+        cues = to_cues(words, gram=gram)
+    # gram = infer_gram(cues)
     cur  = [ i[-(gram-1):] for i in cues ]
     nex  = [ i[:(gram-1)]  for i in cues ]
     vmat = np.equal.outer(cur, nex)

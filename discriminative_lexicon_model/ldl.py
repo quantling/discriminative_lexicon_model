@@ -61,10 +61,10 @@ class LDL:
                 self.gmat = lm.incremental_learning(events, self.smat, self.cmat)
         return None
 
-    def gen_vmat (self, words=None, gram=3):
+    def gen_vmat (self, words=None, gram=3, cues=None):
         if not (words is None):
             self.words = words
-        self.vmat = lm.gen_vmat(self.words, gram=gram)
+        self.vmat = lm.gen_vmat(self.words, gram=gram, cues=cues)
         return None
 
     def gen_shat (self):
