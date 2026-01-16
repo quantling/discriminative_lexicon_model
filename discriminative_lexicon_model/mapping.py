@@ -1,5 +1,6 @@
 from pathlib import Path
 from multiprocessing import Pool
+import warnings
 
 import pandas as pd
 import numpy as np
@@ -415,14 +416,15 @@ def gen_chat (smat=None, gmat=None, cmat=None, hmat=None):
         raise ValueError('(S, G), (S, C), or (H, C) is necessary.')
     return chat
 
-def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False, backend='numpy', device=None):
+def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False, backend='numpy', device=None, batch_size=1, rows_by_index=False):
     """
-    Incremental learning with optional GPU acceleration.
+    Incremental learning with optional GPU acceleration and batch processing.
 
     Parameters
     ----------
     rows : list-like
-        Row labels.
+        Row labels (if rows_by_index=False) or integer indices (if
+        rows_by_index=True) specifying the order of learning events.
     cue_matrix : xarray.DataArray
     out_matrix : xarray.DataArray
     learning_rate : float
@@ -435,6 +437,20 @@ def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weigh
     device : str or None
         For the torch backend: 'cuda', 'cpu', etc. If None and backend is
         'torch' or 'auto', chooses 'cuda' if available, else 'cpu'.
+    batch_size : int
+        Number of rows to process in each batch. Default is 1, which gives
+        the theoretically "true" incremental learning result where each row's
+        prediction uses the weight matrix updated by all previous rows.
+        Larger batch sizes are an approximation that trades theoretical
+        fidelity for computational speed (especially beneficial for GPU).
+        With batch_size > 1, all rows within a batch share the same weight
+        matrix for their predictions before the weight update is applied.
+    rows_by_index : bool
+        If False (default), `rows` contains row labels and selection is done
+        via .loc[]. If True, `rows` contains integer indices and selection is
+        done via positional indexing. Using indices can be useful when you
+        want to specify learning events by position (e.g., allowing the same
+        row to appear multiple times).
     """
     if backend == 'numpy':
         return _incremental_learning_numpy(
@@ -444,6 +460,8 @@ def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weigh
             learning_rate=learning_rate,
             weight_matrix=weight_matrix,
             return_intermediate_weights=return_intermediate_weights,
+            batch_size=batch_size,
+            rows_by_index=rows_by_index,
         )
 
     if backend == 'torch':
@@ -455,6 +473,8 @@ def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weigh
             weight_matrix=weight_matrix,
             return_intermediate_weights=return_intermediate_weights,
             device=device,
+            batch_size=batch_size,
+            rows_by_index=rows_by_index,
         )
 
     if backend == 'auto':
@@ -468,6 +488,8 @@ def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weigh
                 weight_matrix=weight_matrix,
                 return_intermediate_weights=return_intermediate_weights,
                 device=device or 'cuda',
+                batch_size=batch_size,
+                rows_by_index=rows_by_index,
             )
         else:
             return _incremental_learning_numpy(
@@ -477,11 +499,13 @@ def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weigh
                 learning_rate=learning_rate,
                 weight_matrix=weight_matrix,
                 return_intermediate_weights=return_intermediate_weights,
+                batch_size=batch_size,
+                rows_by_index=rows_by_index,
             )
 
     raise ValueError(f'Unknown backend "{backend}". Use "numpy", "torch", or "auto".')
 
-def _incremental_learning_numpy (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False):
+def _incremental_learning_numpy (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False, batch_size=1, rows_by_index=False):
     if weight_matrix is None:
         _dims = (cue_matrix.dims[1], out_matrix.dims[1])
         _coords = {_dims[0]: cue_matrix[_dims[0]].values.tolist(), _dims[1]: out_matrix[_dims[1]].values.tolist()}
@@ -490,19 +514,34 @@ def _incremental_learning_numpy (rows, cue_matrix, out_matrix, learning_rate=0.1
     makesure_xarray(cue_matrix, out_matrix, weight_matrix)
     if return_intermediate_weights:
         weight_mats = [weight_matrix]
-    for i in tqdm(rows):
-        cvec = cue_matrix.loc[[i],:]
-        ovec = out_matrix.loc[[i],:]
+
+    rows = list(rows)
+    n_rows = len(rows)
+    n_batches = (n_rows + batch_size - 1) // batch_size  # ceiling division
+
+    for batch_idx in tqdm(range(n_batches)):
+        start_idx = batch_idx * batch_size
+        end_idx = min(start_idx + batch_size, n_rows)
+        batch_rows = rows[start_idx:end_idx]
+
+        if rows_by_index:
+            cvec = cue_matrix[batch_rows, :]
+            ovec = out_matrix[batch_rows, :]
+        else:
+            cvec = cue_matrix.loc[batch_rows, :]
+            ovec = out_matrix.loc[batch_rows, :]
         weight_matrix = update_weight_matrix(weight_matrix, cvec, ovec, learning_rate)
+
         if return_intermediate_weights:
             weight_mats = weight_mats + [weight_matrix]
+
     if return_intermediate_weights:
         res = weight_mats
     else:
         res = weight_matrix
     return res
 
-def _incremental_learning_torch (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False, device=None):
+def _incremental_learning_torch (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False, device=None, batch_size=1, rows_by_index=False):
 
     if torch is None:
         raise ImportError('PyTorch is not installed. Install it to use the "torch" backend.')
@@ -520,8 +559,9 @@ def _incremental_learning_torch (rows, cue_matrix, out_matrix, learning_rate=0.1
     cues = cue_matrix[cue_dim].values
     outs = out_matrix[out_dim].values
 
-    # Map row labels to integer indices:
-    word_index = {w: idx for idx, w in enumerate(words)}
+    # Map row labels to integer indices (only needed when rows_by_index=False):
+    if not rows_by_index:
+        word_index = {w: idx for idx, w in enumerate(words)}
 
     # Move data to torch:
     cue_tensor = torch.as_tensor(cue_matrix.values, dtype=torch.float32, device=device)
@@ -543,16 +583,27 @@ def _incremental_learning_torch (rows, cue_matrix, out_matrix, learning_rate=0.1
         ]
 
     lr = learning_rate
+    rows = list(rows)
+    n_rows = len(rows)
+    n_batches = (n_rows + batch_size - 1) // batch_size  # ceiling division
 
-    for row_label in tqdm(rows):
-        idx = word_index[row_label]
+    for batch_idx in tqdm(range(n_batches)):
+        start_idx = batch_idx * batch_size
+        end_idx = min(start_idx + batch_size, n_rows)
+        batch_rows = rows[start_idx:end_idx]
 
-        cvec = cue_tensor[idx : idx + 1, :]
-        ovec = out_tensor[idx : idx + 1, :]
+        # Get indices for this batch
+        if rows_by_index:
+            batch_indices = batch_rows
+        else:
+            batch_indices = [word_index[row_label] for row_label in batch_rows]
 
-        pred = cvec @ weight_tensor       # (1, n_out)
-        dlt = ovec - pred                 # (1, n_out)
-        grad = cvec.transpose(0, 1) @ dlt # (n_cues, n_out)
+        cvec = cue_tensor[batch_indices, :]  # (batch, n_cues)
+        ovec = out_tensor[batch_indices, :]  # (batch, n_out)
+
+        pred = cvec @ weight_tensor           # (batch, n_out)
+        dlt = ovec - pred                     # (batch, n_out)
+        grad = cvec.transpose(0, 1) @ dlt     # (n_cues, n_out)
 
         weight_tensor = weight_tensor + lr * grad
 
@@ -576,16 +627,26 @@ def _incremental_learning_torch (rows, cue_matrix, out_matrix, learning_rate=0.1
     else:
         return final_weight
 
-def incremental_learning_byind (events, cue_matrix, out_matrix):
-    _dims = (cue_matrix.dims[1], out_matrix.dims[1])
-    _coords = {_dims[0]: cue_matrix[_dims[0]].values.tolist(), _dims[1]: out_matrix[_dims[1]].values.tolist()}
-    weight_matrix = np.zeros((cue_matrix.shape[1], out_matrix.shape[1]))
-    weight_matrix = xr.DataArray(weight_matrix, dims=_dims, coords=_coords)
-    for i in tqdm(events):
-        cvec = cue_matrix[i,:]
-        ovec = out_matrix[i,:]
-        weight_matrix = lmap.update_weight_matrix(weight_matrix, cvec, ovec, learning_rate=0.1)
-    return weight_matrix
+def incremental_learning_byind (events, cue_matrix, out_matrix, learning_rate=0.1):
+    """
+    Deprecated: Use incremental_learning(..., rows_by_index=True) instead.
+
+    This function is kept for backward compatibility but will be removed in a
+    future version.
+    """
+    warnings.warn(
+        'incremental_learning_byind is deprecated. '
+        'Use incremental_learning(..., rows_by_index=True) instead.',
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return incremental_learning(
+        rows=events,
+        cue_matrix=cue_matrix,
+        out_matrix=out_matrix,
+        learning_rate=learning_rate,
+        rows_by_index=True,
+    )
 
 def update_weight_matrix (weight_matrix, cue_vector, out_vector, learning_rate=0.1):
     dlt = delta_weight_matrix(weight_matrix, cue_vector, out_vector, learning_rate)
