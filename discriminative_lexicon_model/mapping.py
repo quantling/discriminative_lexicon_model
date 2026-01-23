@@ -1,5 +1,6 @@
 from pathlib import Path
 from multiprocessing import Pool
+import warnings
 
 import pandas as pd
 import numpy as np
@@ -10,6 +11,11 @@ from tqdm import tqdm
 
 from . import mapping as lmap
 
+try:
+    import torch
+except ImportError:
+    torch = None
+
 def to_cues (words, gram=3):
     words = [ '#' + i + '#'for i in words ]
     words = [ i.ljust(max([ len(i) for i in words ]), ' ') for i in words ]
@@ -19,9 +25,10 @@ def to_cues (words, gram=3):
     cues = list(dict.fromkeys(cues))
     return cues
 
-def gen_vmat (words, gram=3):
-    cues = to_cues(words, gram=gram)
-    gram = infer_gram(cues)
+def gen_vmat (words, gram=3, cues=None):
+    if cues is None:
+        cues = to_cues(words, gram=gram)
+    # gram = infer_gram(cues)
     cur  = [ i[-(gram-1):] for i in cues ]
     nex  = [ i[:(gram-1)]  for i in cues ]
     vmat = np.equal.outer(cur, nex)
@@ -313,9 +320,9 @@ def gen_jmat (mmat, dim_size, mn=0, sd=1, seed=None):
 
 def gen_fmat (cmat, smat):
     if isinstance(cmat, xr.DataArray) and isinstance(smat, xr.DataArray):
-        rname = list(cmat.coords)[1]
+        rname = cmat.dims[1]
         rvals = cmat[rname]
-        cname = list(smat.coords)[1]
+        cname = smat.dims[1]
         cvals = smat[cname]
     if not all([ isinstance(i, np.ndarray) for i in [cmat, smat] ]):
         cmat = np.array(cmat)
@@ -326,9 +333,9 @@ def gen_fmat (cmat, smat):
 
 def gen_gmat (cmat, smat):
     if isinstance(cmat, xr.DataArray) and isinstance(smat, xr.DataArray):
-        rname = list(smat.coords)[1]
+        rname = smat.dims[1]
         rvals = smat[rname]
-        cname = list(cmat.coords)[1]
+        cname = cmat.dims[1]
         cvals = cmat[cname]
     if not all([ isinstance(i, np.ndarray) for i in [cmat, smat] ]):
         cmat = np.array(cmat)
@@ -409,7 +416,96 @@ def gen_chat (smat=None, gmat=None, cmat=None, hmat=None):
         raise ValueError('(S, G), (S, C), or (H, C) is necessary.')
     return chat
 
-def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False):
+def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False, backend='numpy', device=None, batch_size=1, rows_by_index=False):
+    """
+    Incremental learning with optional GPU acceleration and batch processing.
+
+    Parameters
+    ----------
+    rows : list-like
+        Row labels (if rows_by_index=False) or integer indices (if
+        rows_by_index=True) specifying the order of learning events.
+    cue_matrix : xarray.DataArray
+    out_matrix : xarray.DataArray
+    learning_rate : float
+    weight_matrix : xarray.DataArray or None
+    return_intermediate_weights : bool
+    backend : {'numpy', 'torch', 'auto'}
+        'numpy' -> original NumPy/xarray CPU implementation.
+        'torch' -> PyTorch implementation (CPU/GPU depending on 'device').
+        'auto'  -> try torch+CUDA if available, else fall back to NumPy.
+    device : str or None
+        For the torch backend: 'cuda', 'cpu', etc. If None and backend is
+        'torch' or 'auto', chooses 'cuda' if available, else 'cpu'.
+    batch_size : int
+        Number of rows to process in each batch. Default is 1, which gives
+        the theoretically "true" incremental learning result where each row's
+        prediction uses the weight matrix updated by all previous rows.
+        Larger batch sizes are an approximation that trades theoretical
+        fidelity for computational speed (especially beneficial for GPU).
+        With batch_size > 1, all rows within a batch share the same weight
+        matrix for their predictions before the weight update is applied.
+    rows_by_index : bool
+        If False (default), `rows` contains row labels and selection is done
+        via .loc[]. If True, `rows` contains integer indices and selection is
+        done via positional indexing. Using indices can be useful when you
+        want to specify learning events by position (e.g., allowing the same
+        row to appear multiple times).
+    """
+    if backend == 'numpy':
+        return _incremental_learning_numpy(
+            rows,
+            cue_matrix,
+            out_matrix,
+            learning_rate=learning_rate,
+            weight_matrix=weight_matrix,
+            return_intermediate_weights=return_intermediate_weights,
+            batch_size=batch_size,
+            rows_by_index=rows_by_index,
+        )
+
+    if backend == 'torch':
+        return _incremental_learning_torch(
+            rows,
+            cue_matrix,
+            out_matrix,
+            learning_rate=learning_rate,
+            weight_matrix=weight_matrix,
+            return_intermediate_weights=return_intermediate_weights,
+            device=device,
+            batch_size=batch_size,
+            rows_by_index=rows_by_index,
+        )
+
+    if backend == 'auto':
+        # Prefer torch+CUDA if possible
+        if (torch is not None) and (device == 'cuda' or (device is None and torch.cuda.is_available())):
+            return _incremental_learning_torch(
+                rows,
+                cue_matrix,
+                out_matrix,
+                learning_rate=learning_rate,
+                weight_matrix=weight_matrix,
+                return_intermediate_weights=return_intermediate_weights,
+                device=device or 'cuda',
+                batch_size=batch_size,
+                rows_by_index=rows_by_index,
+            )
+        else:
+            return _incremental_learning_numpy(
+                rows,
+                cue_matrix,
+                out_matrix,
+                learning_rate=learning_rate,
+                weight_matrix=weight_matrix,
+                return_intermediate_weights=return_intermediate_weights,
+                batch_size=batch_size,
+                rows_by_index=rows_by_index,
+            )
+
+    raise ValueError(f'Unknown backend "{backend}". Use "numpy", "torch", or "auto".')
+
+def _incremental_learning_numpy (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False, batch_size=1, rows_by_index=False):
     if weight_matrix is None:
         _dims = (cue_matrix.dims[1], out_matrix.dims[1])
         _coords = {_dims[0]: cue_matrix[_dims[0]].values.tolist(), _dims[1]: out_matrix[_dims[1]].values.tolist()}
@@ -418,28 +514,139 @@ def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weigh
     makesure_xarray(cue_matrix, out_matrix, weight_matrix)
     if return_intermediate_weights:
         weight_mats = [weight_matrix]
-    for i in tqdm(rows):
-        cvec = cue_matrix.loc[[i],:]
-        ovec = out_matrix.loc[[i],:]
+
+    rows = list(rows)
+    n_rows = len(rows)
+    n_batches = (n_rows + batch_size - 1) // batch_size  # ceiling division
+
+    for batch_idx in tqdm(range(n_batches)):
+        start_idx = batch_idx * batch_size
+        end_idx = min(start_idx + batch_size, n_rows)
+        batch_rows = rows[start_idx:end_idx]
+
+        if rows_by_index:
+            cvec = cue_matrix[batch_rows, :]
+            ovec = out_matrix[batch_rows, :]
+        else:
+            cvec = cue_matrix.loc[batch_rows, :]
+            ovec = out_matrix.loc[batch_rows, :]
         weight_matrix = update_weight_matrix(weight_matrix, cvec, ovec, learning_rate)
+
         if return_intermediate_weights:
             weight_mats = weight_mats + [weight_matrix]
+
     if return_intermediate_weights:
         res = weight_mats
     else:
         res = weight_matrix
     return res
 
-def incremental_learning_byind (events, cue_matrix, out_matrix):
-    _dims = (cue_matrix.dims[1], out_matrix.dims[1])
-    _coords = {_dims[0]: cue_matrix[_dims[0]].values.tolist(), _dims[1]: out_matrix[_dims[1]].values.tolist()}
-    weight_matrix = np.zeros((cue_matrix.shape[1], out_matrix.shape[1]))
-    weight_matrix = xr.DataArray(weight_matrix, dims=_dims, coords=_coords)
-    for i in tqdm(events):
-        cvec = cue_matrix[i,:]
-        ovec = out_matrix[i,:]
-        weight_matrix = lmap.update_weight_matrix(weight_matrix, cvec, ovec, learning_rate=0.1)
-    return weight_matrix
+def _incremental_learning_torch (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False, device=None, batch_size=1, rows_by_index=False):
+
+    if torch is None:
+        raise ImportError('PyTorch is not installed. Install it to use the "torch" backend.')
+
+    if device is None:
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    makesure_xarray(cue_matrix, out_matrix)
+
+    word_dim = cue_matrix.dims[0]
+    cue_dim = cue_matrix.dims[1]
+    out_dim = out_matrix.dims[1]
+
+    words = cue_matrix[word_dim].values
+    cues = cue_matrix[cue_dim].values
+    outs = out_matrix[out_dim].values
+
+    # Map row labels to integer indices (only needed when rows_by_index=False):
+    if not rows_by_index:
+        word_index = {w: idx for idx, w in enumerate(words)}
+
+    # Move data to torch:
+    cue_tensor = torch.as_tensor(cue_matrix.values, dtype=torch.float32, device=device)
+    out_tensor = torch.as_tensor(out_matrix.values, dtype=torch.float32, device=device)
+
+    if weight_matrix is None:
+        weight_tensor = torch.zeros((cue_tensor.shape[1], out_tensor.shape[1]), dtype=torch.float32, device=device)
+    else:
+        makesure_xarray(weight_matrix)
+        weight_tensor = torch.as_tensor(weight_matrix.values, dtype=torch.float32, device=device)
+
+    if return_intermediate_weights:
+        weight_mats = [
+            xr.DataArray(
+                weight_tensor.detach().cpu().numpy(),
+                dims=(cue_dim, out_dim),
+                coords={cue_dim: cues, out_dim: outs},
+            )
+        ]
+
+    lr = learning_rate
+    rows = list(rows)
+    n_rows = len(rows)
+    n_batches = (n_rows + batch_size - 1) // batch_size  # ceiling division
+
+    for batch_idx in tqdm(range(n_batches)):
+        start_idx = batch_idx * batch_size
+        end_idx = min(start_idx + batch_size, n_rows)
+        batch_rows = rows[start_idx:end_idx]
+
+        # Get indices for this batch
+        if rows_by_index:
+            batch_indices = batch_rows
+        else:
+            batch_indices = [word_index[row_label] for row_label in batch_rows]
+
+        cvec = cue_tensor[batch_indices, :]  # (batch, n_cues)
+        ovec = out_tensor[batch_indices, :]  # (batch, n_out)
+
+        pred = cvec @ weight_tensor           # (batch, n_out)
+        dlt = ovec - pred                     # (batch, n_out)
+        grad = cvec.transpose(0, 1) @ dlt     # (n_cues, n_out)
+
+        weight_tensor = weight_tensor + lr * grad
+
+        if return_intermediate_weights:
+            weight_mats.append(
+                xr.DataArray(
+                    weight_tensor.detach().cpu().numpy(),
+                    dims=(cue_dim, out_dim),
+                    coords={cue_dim: cues, out_dim: outs},
+                )
+            )
+
+    final_weight = xr.DataArray(
+        weight_tensor.detach().cpu().numpy(),
+        dims=(cue_dim, out_dim),
+        coords={cue_dim: cues, out_dim: outs},
+    )
+
+    if return_intermediate_weights:
+        return weight_mats
+    else:
+        return final_weight
+
+def incremental_learning_byind (events, cue_matrix, out_matrix, learning_rate=0.1):
+    """
+    Deprecated: Use incremental_learning(..., rows_by_index=True) instead.
+
+    This function is kept for backward compatibility but will be removed in a
+    future version.
+    """
+    warnings.warn(
+        'incremental_learning_byind is deprecated. '
+        'Use incremental_learning(..., rows_by_index=True) instead.',
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return incremental_learning(
+        rows=events,
+        cue_matrix=cue_matrix,
+        out_matrix=out_matrix,
+        learning_rate=learning_rate,
+        rows_by_index=True,
+    )
 
 def update_weight_matrix (weight_matrix, cue_vector, out_vector, learning_rate=0.1):
     dlt = delta_weight_matrix(weight_matrix, cue_vector, out_vector, learning_rate)
