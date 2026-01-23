@@ -416,7 +416,7 @@ def gen_chat (smat=None, gmat=None, cmat=None, hmat=None):
         raise ValueError('(S, G), (S, C), or (H, C) is necessary.')
     return chat
 
-def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False, backend='numpy', device=None, batch_size=1, rows_by_index=False):
+def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False, backend='numpy', device=None, batch_size=1, rows_by_index=False, nlms=True):
     """
     Incremental learning with optional GPU acceleration and batch processing.
 
@@ -451,6 +451,11 @@ def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weigh
         done via positional indexing. Using indices can be useful when you
         want to specify learning events by position (e.g., allowing the same
         row to appear multiple times).
+    nlms : bool
+        If True (default), use the Normalized Least Mean Squares (NLMS)
+        algorithm which normalizes the weight update by the squared norm of
+        the cue vector. This provides more stable learning rates across
+        different input magnitudes. If False, use the standard LMS algorithm.
     """
     if backend == 'numpy':
         return _incremental_learning_numpy(
@@ -462,6 +467,7 @@ def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weigh
             return_intermediate_weights=return_intermediate_weights,
             batch_size=batch_size,
             rows_by_index=rows_by_index,
+            nlms=nlms,
         )
 
     if backend == 'torch':
@@ -475,6 +481,7 @@ def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weigh
             device=device,
             batch_size=batch_size,
             rows_by_index=rows_by_index,
+            nlms=nlms,
         )
 
     if backend == 'auto':
@@ -490,6 +497,7 @@ def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weigh
                 device=device or 'cuda',
                 batch_size=batch_size,
                 rows_by_index=rows_by_index,
+                nlms=nlms,
             )
         else:
             return _incremental_learning_numpy(
@@ -501,11 +509,12 @@ def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weigh
                 return_intermediate_weights=return_intermediate_weights,
                 batch_size=batch_size,
                 rows_by_index=rows_by_index,
+                nlms=nlms,
             )
 
     raise ValueError(f'Unknown backend "{backend}". Use "numpy", "torch", or "auto".')
 
-def _incremental_learning_numpy (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False, batch_size=1, rows_by_index=False):
+def _incremental_learning_numpy (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False, batch_size=1, rows_by_index=False, nlms=True):
     if weight_matrix is None:
         _dims = (cue_matrix.dims[1], out_matrix.dims[1])
         _coords = {_dims[0]: cue_matrix[_dims[0]].values.tolist(), _dims[1]: out_matrix[_dims[1]].values.tolist()}
@@ -530,7 +539,7 @@ def _incremental_learning_numpy (rows, cue_matrix, out_matrix, learning_rate=0.1
         else:
             cvec = cue_matrix.loc[batch_rows, :]
             ovec = out_matrix.loc[batch_rows, :]
-        weight_matrix = update_weight_matrix(weight_matrix, cvec, ovec, learning_rate)
+        weight_matrix = update_weight_matrix(weight_matrix, cvec, ovec, learning_rate, nlms=nlms)
 
         if return_intermediate_weights:
             weight_mats = weight_mats + [weight_matrix]
@@ -541,7 +550,7 @@ def _incremental_learning_numpy (rows, cue_matrix, out_matrix, learning_rate=0.1
         res = weight_matrix
     return res
 
-def _incremental_learning_torch (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False, device=None, batch_size=1, rows_by_index=False):
+def _incremental_learning_torch (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False, device=None, batch_size=1, rows_by_index=False, nlms=True):
 
     if torch is None:
         raise ImportError('PyTorch is not installed. Install it to use the "torch" backend.')
@@ -605,7 +614,12 @@ def _incremental_learning_torch (rows, cue_matrix, out_matrix, learning_rate=0.1
         dlt = ovec - pred                     # (batch, n_out)
         grad = cvec.transpose(0, 1) @ dlt     # (n_cues, n_out)
 
-        weight_tensor = weight_tensor + lr * grad
+        if nlms:
+            # Normalize by squared norm of cue vector (NLMS algorithm) for numerical stability
+            cue_norm_sq = torch.sum(cvec ** 2) + 1e-8
+            weight_tensor = weight_tensor + lr * grad / cue_norm_sq
+        else:
+            weight_tensor = weight_tensor + lr * grad
 
         if return_intermediate_weights:
             weight_mats.append(
@@ -648,15 +662,20 @@ def incremental_learning_byind (events, cue_matrix, out_matrix, learning_rate=0.
         rows_by_index=True,
     )
 
-def update_weight_matrix (weight_matrix, cue_vector, out_vector, learning_rate=0.1):
-    dlt = delta_weight_matrix(weight_matrix, cue_vector, out_vector, learning_rate)
+def update_weight_matrix (weight_matrix, cue_vector, out_vector, learning_rate=0.1, nlms=True):
+    dlt = delta_weight_matrix(weight_matrix, cue_vector, out_vector, learning_rate, nlms=nlms)
     weight_matrix = weight_matrix + dlt
     return weight_matrix
 
-def delta_weight_matrix (weight_matrix, cue_vector, out_vector, learning_rate=0.1):
+def delta_weight_matrix (weight_matrix, cue_vector, out_vector, learning_rate=0.1, nlms=True):
     weight_matrix, cue_vector, out_vector = to_nparray(weight_matrix, cue_vector, out_vector)
     dlt = out_vector - matmul(cue_vector, weight_matrix)
-    dlt = matmul(cue_vector.T, dlt) * learning_rate
+    if nlms:
+        # Normalize by squared norm of cue vector (NLMS algorithm) for numerical stability
+        cue_norm_sq = np.sum(cue_vector ** 2) + 1e-8  # Add epsilon to avoid division by zero
+        dlt = matmul(cue_vector.T, dlt) * learning_rate / cue_norm_sq
+    else:
+        dlt = matmul(cue_vector.T, dlt) * learning_rate
     return dlt
 
 def update_weight_alt (weight_matrix, cue_vector, out_vector, learning_rate=0.1):
