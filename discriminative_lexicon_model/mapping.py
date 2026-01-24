@@ -344,40 +344,78 @@ def gen_gmat (cmat, smat):
     gmat = xr.DataArray(gmat, dims=(rname, cname), coords={rname:rvals, cname:cvals})
     return gmat
 
-def gen_shat (cmat=None, fmat=None, smat=None, hmat=None):
+def gen_shat (cmat=None, fmat=None, smat=None, hmat=None, backend='auto', device=None):
+    """
+    Generate predicted semantic matrix (S-hat) via matrix multiplication.
+
+    Parameters
+    ----------
+    cmat : xr.DataArray or np.ndarray, optional
+        C-matrix (cue matrix).
+    fmat : xr.DataArray or np.ndarray, optional
+        F-matrix (mapping from cues to semantics).
+    smat : xr.DataArray or np.ndarray, optional
+        S-matrix (semantic matrix). Used with cmat to compute fmat first.
+    hmat : xr.DataArray or np.ndarray, optional
+        H-matrix. Used with smat for alternative computation.
+    backend : str, optional
+        Computation backend: 'numpy', 'torch', or 'auto' (default).
+        'auto' uses torch with CUDA if available, otherwise numpy.
+    device : str, optional
+        Device for torch backend: 'cuda', 'cpu', or None (auto-detect).
+
+    Returns
+    -------
+    shat : xr.DataArray
+        Predicted semantic matrix.
+    """
+    # Determine which matrices to multiply
     if all([ not (i is None) for i in [cmat, fmat] ]):
+        mat_a, mat_b = cmat, fmat
         if isinstance(cmat, xr.DataArray) and isinstance(fmat, xr.DataArray):
             rname = list(cmat.coords)[0]
             rvals = cmat[rname]
             cname = list(fmat.coords)[1]
             cvals = fmat[cname]
-        cmat = np.array(cmat) if not isinstance(cmat, np.ndarray) else cmat
-        fmat = np.array(fmat) if not isinstance(fmat, np.ndarray) else fmat
-        shat = np.matmul(cmat, fmat)
-        shat = xr.DataArray(shat, dims=(rname, cname), coords={rname:rvals, cname:cvals})
     elif all([ not (i is None) for i in [cmat, smat] ]):
         fmat = gen_fmat(cmat, smat)
+        mat_a, mat_b = cmat, fmat
         if isinstance(cmat, xr.DataArray) and isinstance(fmat, xr.DataArray):
             rname = list(cmat.coords)[0]
             rvals = cmat[rname]
             cname = list(fmat.coords)[1]
             cvals = fmat[cname]
-        cmat = np.array(cmat) if not isinstance(cmat, np.ndarray) else cmat
-        fmat = np.array(fmat) if not isinstance(fmat, np.ndarray) else fmat
-        shat = np.matmul(cmat, fmat)
-        shat = xr.DataArray(shat, dims=(rname, cname), coords={rname:rvals, cname:cvals})
     elif all([ not (i is None) for i in [hmat, smat] ]):
+        mat_a, mat_b = hmat, smat
         if isinstance(hmat, xr.DataArray) and isinstance(smat, xr.DataArray):
             rname = list(hmat.coords)[0]
             rvals = hmat[rname]
             cname = list(smat.coords)[1]
             cvals = smat[cname]
-        hmat = np.array(hmat) if not isinstance(hmat, np.ndarray) else hmat
-        smat = np.array(smat) if not isinstance(smat, np.ndarray) else smat
-        shat = np.matmul(hmat, smat)
-        shat = xr.DataArray(shat, dims=(rname, cname), coords={rname:rvals, cname:cvals})
     else:
         raise ValueError('(C, F), (C, S), or (H, S) is necessary.')
+
+    # Determine backend
+    use_torch = False
+    if backend == 'torch':
+        use_torch = True
+    elif backend == 'auto':
+        if torch is not None and torch.cuda.is_available():
+            use_torch = True
+
+    # Compute matrix multiplication
+    if use_torch:
+        if device is None:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        mat_a_t = torch.as_tensor(np.array(mat_a), dtype=torch.float32, device=device)
+        mat_b_t = torch.as_tensor(np.array(mat_b), dtype=torch.float32, device=device)
+        shat_vals = torch.mm(mat_a_t, mat_b_t).cpu().numpy()
+    else:
+        mat_a = np.array(mat_a) if not isinstance(mat_a, np.ndarray) else mat_a
+        mat_b = np.array(mat_b) if not isinstance(mat_b, np.ndarray) else mat_b
+        shat_vals = np.matmul(mat_a, mat_b)
+
+    shat = xr.DataArray(shat_vals, dims=(rname, cname), coords={rname:rvals, cname:cvals})
     return shat
 
 def gen_chat (smat=None, gmat=None, cmat=None, hmat=None):
