@@ -17,12 +17,8 @@ except ImportError:
     torch = None
 
 def to_cues (words, gram=3):
-    words = [ '#' + i + '#'for i in words ]
-    words = [ i.ljust(max([ len(i) for i in words ]), ' ') for i in words ]
-    cues = [ [ i[j:(j+gram)] for j in range(len(i)-(gram-1)) ] for i in words ]
-    cues = [ [ j for j in i if not (' ' in j) ] for i in cues ]
-    cues = [ j for i in cues for j in i ]
-    cues = list(dict.fromkeys(cues))
+    cues = [ to_ngram(i, gram=gram) for i in words ]
+    cues = list(dict.fromkeys([ j for i in cues for j in i ]))
     return cues
 
 def gen_vmat (words, gram=3, cues=None):
@@ -60,8 +56,9 @@ def _cue_exist (x):
     i,j = x
     return j in '#'+i+'#'
 
-def gen_cmat (words, gram=3, count=True, noise=0, freqs=None, randseed=None, differentiate_duplicates=False):
-    cues = unique_cues(words, gram=gram)
+def gen_cmat (words, gram=3, count=True, noise=0, freqs=None, randseed=None, differentiate_duplicates=False, cues=None):
+    if cues is None:
+        cues = to_cues(words, gram=gram)
     cuelen = list(set([ len(i) for i in cues ]))
     if len(cuelen)!=1:
         raise ValueError('Variable cue length (gram size) detected. Check length of each cue.')
@@ -87,9 +84,8 @@ def gen_cmat (words, gram=3, count=True, noise=0, freqs=None, randseed=None, dif
     return cmat
 
 def unique_cues (words, gram):
-    cues = [ to_ngram(i, gram=gram) for i in words ]
-    cues = list(dict.fromkeys([ j for i in cues for j in i ]))
-    return cues
+    warnings.warn('unique_cues is deprecated. Use to_cues instead.', DeprecationWarning, stacklevel=2)
+    return to_cues(words, gram=gram)
 
 def _differentiate_duplicates (words):
     uniqs = pd.Series(words) + pd.Series(words, name='hoge').to_frame().groupby('hoge').cumcount().astype(str)
