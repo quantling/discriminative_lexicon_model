@@ -57,6 +57,41 @@ def test_gen_cmat (gram, count, noise):
     assert cmat_test.identical(cmat0)
 
 
+def test_gen_cmat_cues_same_words ():
+    """Passing cues derived from the same words should produce an identical result."""
+    words = ['banana', 'aaaa']
+    cues = pm.to_cues(words, gram=2)
+    cmat_auto = pm.gen_cmat(words, gram=2)
+    cmat_cues = pm.gen_cmat(words, gram=2, cues=cues)
+    assert cmat_cues.identical(cmat_auto)
+
+
+def test_gen_cmat_cues_shared_dimensions ():
+    """Two word sets with the same pre-defined cues should have identical cue dimensions."""
+    all_words = ['banana', 'aaaa', 'ban']
+    cues = pm.to_cues(all_words, gram=2)
+    cmat_a = pm.gen_cmat(['banana', 'aaaa'], gram=2, cues=cues)
+    cmat_b = pm.gen_cmat(['ban'], gram=2, cues=cues)
+    assert list(cmat_a.cues.values) == list(cmat_b.cues.values)
+
+
+def test_gen_cmat_cues_superset ():
+    """Cues from a larger word set produce zero columns for absent n-grams."""
+    cues = pm.to_cues(['banana', 'aaaa', 'ban'], gram=2)
+    cmat = pm.gen_cmat(['ban'], gram=2, cues=cues)
+    assert cmat.shape == (1, len(cues))
+    # 'aa' is a cue from 'aaaa' but never appears in 'ban'
+    assert cmat.sel(word='ban', cues='aa').item() == 0
+
+
+def test_gen_cmat_cues_subset ():
+    """Passing a subset of cues limits the columns accordingly."""
+    cues_subset = ['#b', 'ba', 'an']
+    cmat = pm.gen_cmat(['banana'], gram=2, cues=cues_subset)
+    assert list(cmat.cues.values) == cues_subset
+    assert cmat.shape == (1, 3)
+
+
 def test_df_to_smat ():
     words = ['ban','banban','banbanban']
     df = pd.DataFrame({'ban':[1, 1, 1], 'intensity':[1, 2, 3]}, index=words)
