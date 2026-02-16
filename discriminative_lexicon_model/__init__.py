@@ -21,8 +21,17 @@ except ModuleNotFoundError:
 try:
     from . import mapping
     from . import measures
-    from . import performance 
+    from . import performance
     from . import ldl
+    from .mapping import *
+    from .measures import *
+    from .performance import *
+    from .ldl import *
 except ModuleNotFoundError:
     pass
+
+__all__ = ["mapping", "measures", "performance", "ldl"]
+for _mod in (mapping, measures, performance, ldl):
+    __all__ += getattr(_mod, "__all__", [])
+del _mod
 
