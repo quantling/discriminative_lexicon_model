@@ -60,8 +60,9 @@ def _cue_exist (x):
     i,j = x
     return j in '#'+i+'#'
 
-def gen_cmat (words, gram=3, count=True, noise=0, freqs=None, randseed=None, differentiate_duplicates=False):
-    cues = unique_cues(words, gram=gram)
+def gen_cmat (words, gram=3, count=True, noise=0, freqs=None, randseed=None, differentiate_duplicates=False, cues=None):
+    if cues is None:
+        cues = unique_cues(words, gram=gram)
     cuelen = list(set([ len(i) for i in cues ]))
     if len(cuelen)!=1:
         raise ValueError('Variable cue length (gram size) detected. Check length of each cue.')
