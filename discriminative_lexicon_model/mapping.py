@@ -11,6 +11,31 @@ from tqdm import tqdm
 
 from . import mapping as lmap
 
+__all__ = [
+    "to_cues",
+    "to_ngram",
+    "infer_gram",
+    "gen_vmat",
+    "gen_cmat",
+    "gen_cmat_from_df",
+    "gen_smat",
+    "gen_smat_from_df",
+    "gen_smat_sim",
+    "gen_mmat",
+    "gen_jmat",
+    "gen_fmat",
+    "gen_gmat",
+    "gen_shat",
+    "gen_chat",
+    "incremental_learning",
+    "weight_by_freq",
+    "save_mat_as_csv",
+    "load_mat_from_csv",
+    "load_csv",
+    "save_mat",
+    "load_mat",
+]
+
 try:
     import torch
 except ImportError:

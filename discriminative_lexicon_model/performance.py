@@ -3,6 +3,8 @@ import pandas as pd
 import xarray as xr
 import scipy.spatial.distance as spd
 
+__all__ = ["accuracy", "predict_df", "distance_matrix"]
+
 def accuracy (*, pred, gold, method='correlation'):
     """
     Calculates prediction accuracy from a matrix of predictions and that of

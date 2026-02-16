@@ -4,6 +4,16 @@ import scipy.spatial.distance as spd
 
 from . import mapping as pmap
 
+__all__ = [
+    "functional_load",
+    "partial_semantic_support",
+    "semantic_support",
+    "semantic_support_word",
+    "prod_acc",
+    "uncertainty",
+    "vector_length",
+]
+
 def functional_load (cue, fmat, word, smat, method='corr'):
     cvec = fmat.loc[cue,:]
     wvec = smat.loc[word,:]
