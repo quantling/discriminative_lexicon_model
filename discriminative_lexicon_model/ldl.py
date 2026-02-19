@@ -69,7 +69,9 @@ class LDL:
     def gen_vmat (self, words=None, gram=3, cues=None):
         if not (words is None):
             self.words = words
-        self.vmat = lm.gen_vmat(self.words, gram=gram, cues=cues)
+        if cues is None:
+            cues = lm.to_cues(self.words, gram=gram)
+        self.vmat = lm.gen_vmat(cues=cues)
         return None
 
     def gen_shat (self):
