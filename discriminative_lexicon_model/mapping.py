@@ -27,6 +27,7 @@ __all__ = [
     "gen_gmat",
     "gen_shat",
     "gen_chat",
+    "gen_chat_produce",
     "produce",
     "incremental_learning",
     "weight_by_freq",
@@ -474,6 +475,67 @@ def gen_chat (smat=None, gmat=None, cmat=None, hmat=None):
         chat = xr.DataArray(chat, dims=(rname, cname), coords={rname:rvals, cname:cvals})
     else:
         raise ValueError('(S, G), (S, C), or (H, C) is necessary.')
+    return chat
+
+def gen_chat_produce (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None):
+    """
+    Generate predicted cue matrix (C-hat) using incremental production.
+
+    Unlike gen_chat which computes C-hat via matrix multiplication (S @ G),
+    this function uses the produce algorithm to incrementally select cues
+    for each word. For each word, the semantic vector is fed to produce(),
+    which selects cues one by one, each time generating a predicted c-hat
+    vector. The c-hat vectors across all steps are summed to form the
+    word's row in the resulting C-hat matrix.
+
+    Parameters
+    ----------
+    smat : xarray.DataArray
+        S-matrix (semantic matrix), with dims (word, semantics).
+    cmat : xarray.DataArray
+        C-matrix (cue matrix).
+    fmat : xarray.DataArray
+        F-matrix (mapping from cues to semantics).
+    gmat : xarray.DataArray
+        G-matrix (mapping from semantics to cues).
+    vmat : xarray.DataArray or None
+        Validity matrix. Required when apply_vmat is True.
+    roundby : int
+        Number of decimal places to round vectors in produce.
+    max_attempt : int
+        Maximum number of iterations per word.
+    positive : bool
+        If True, set negative values to zero during production.
+    apply_vmat : bool
+        If True, apply validity matrix during production.
+    backend : {'numpy', 'torch', 'auto'}
+        Backend for produce computation.
+    device : str or None
+        Device for torch backend.
+
+    Returns
+    -------
+    chat : xarray.DataArray
+        Predicted cue matrix with dims (word, cues).
+    """
+    words = smat.word.values
+    cues = cmat.cues.values
+    rows = []
+    for word in words:
+        gold = smat.sel(word=word).values
+        result = produce(gold, cmat, fmat, gmat, vmat=vmat, word=False,
+                         roundby=roundby, max_attempt=max_attempt,
+                         positive=positive, apply_vmat=apply_vmat,
+                         backend=backend, device=device)
+        numeric_cols = result.drop(columns=['Selected'])
+        if len(numeric_cols) == 0:
+            row_sum = np.zeros(len(cues))
+        else:
+            row_sum = numeric_cols.sum(axis=0).values
+        rows.append(row_sum)
+    chat = np.stack(rows)
+    chat = xr.DataArray(chat, dims=('word', 'cues'),
+                        coords={'word': list(words), 'cues': list(cues)})
     return chat
 
 def produce (gold, cmat, fmat, gmat, vmat=None, word=False, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None):

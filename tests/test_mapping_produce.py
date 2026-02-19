@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from discriminative_lexicon_model.ldl import LDL
-from discriminative_lexicon_model.mapping import produce
+from discriminative_lexicon_model.mapping import produce, gen_chat_produce, gen_chat
 
 try:
     import torch
@@ -548,3 +548,227 @@ class TestAlignmentTorchBackend:
                                     backend='torch', device='cpu')
         assert list(result_ldl['Selected']) == list(result_standalone['Selected'])
         assert len(result_ldl) == len(result_standalone)
+
+
+# ============================================================
+# Part 3: gen_chat_produce tests
+# ============================================================
+
+class TestGenChatProduceBasic:
+    """Basic tests for gen_chat_produce."""
+
+    def test_returns_xarray(self, ldl_with_matrices):
+        result = gen_chat_produce(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        assert isinstance(result, xr.DataArray)
+
+    def test_has_correct_dims(self, ldl_with_matrices):
+        result = gen_chat_produce(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        assert result.dims == ('word', 'cues')
+
+    def test_has_correct_shape(self, ldl_with_matrices):
+        result = gen_chat_produce(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        n_words = ldl_with_matrices.smat.shape[0]
+        n_cues = ldl_with_matrices.cmat.shape[1]
+        assert result.shape == (n_words, n_cues)
+
+    def test_word_coords_match_smat(self, ldl_with_matrices):
+        result = gen_chat_produce(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        assert list(result.word.values) == list(ldl_with_matrices.smat.word.values)
+
+    def test_cue_coords_match_cmat(self, ldl_with_matrices):
+        result = gen_chat_produce(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        assert list(result.cues.values) == list(ldl_with_matrices.cmat.cues.values)
+
+    def test_values_are_finite(self, ldl_with_matrices):
+        result = gen_chat_produce(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        assert np.all(np.isfinite(result.values))
+
+
+class TestGenChatProduceSameStructureAsGenChat:
+    """Test that gen_chat_produce has the same structure as gen_chat."""
+
+    def test_same_dims(self, ldl_with_matrices):
+        chat_mm = gen_chat(smat=ldl_with_matrices.smat,
+                           gmat=ldl_with_matrices.gmat)
+        chat_prod = gen_chat_produce(ldl_with_matrices.smat,
+                                     ldl_with_matrices.cmat,
+                                     ldl_with_matrices.fmat,
+                                     ldl_with_matrices.gmat,
+                                     ldl_with_matrices.vmat, backend='numpy')
+        assert chat_mm.dims == chat_prod.dims
+
+    def test_same_shape(self, ldl_with_matrices):
+        chat_mm = gen_chat(smat=ldl_with_matrices.smat,
+                           gmat=ldl_with_matrices.gmat)
+        chat_prod = gen_chat_produce(ldl_with_matrices.smat,
+                                     ldl_with_matrices.cmat,
+                                     ldl_with_matrices.fmat,
+                                     ldl_with_matrices.gmat,
+                                     ldl_with_matrices.vmat, backend='numpy')
+        assert chat_mm.shape == chat_prod.shape
+
+    def test_same_word_coords(self, ldl_with_matrices):
+        chat_mm = gen_chat(smat=ldl_with_matrices.smat,
+                           gmat=ldl_with_matrices.gmat)
+        chat_prod = gen_chat_produce(ldl_with_matrices.smat,
+                                     ldl_with_matrices.cmat,
+                                     ldl_with_matrices.fmat,
+                                     ldl_with_matrices.gmat,
+                                     ldl_with_matrices.vmat, backend='numpy')
+        assert list(chat_mm.word.values) == list(chat_prod.word.values)
+
+    def test_same_cue_coords(self, ldl_with_matrices):
+        chat_mm = gen_chat(smat=ldl_with_matrices.smat,
+                           gmat=ldl_with_matrices.gmat)
+        chat_prod = gen_chat_produce(ldl_with_matrices.smat,
+                                     ldl_with_matrices.cmat,
+                                     ldl_with_matrices.fmat,
+                                     ldl_with_matrices.gmat,
+                                     ldl_with_matrices.vmat, backend='numpy')
+        assert list(chat_mm.cues.values) == list(chat_prod.cues.values)
+
+
+class TestGenChatProduceConsistencyWithProduce:
+    """Test that gen_chat_produce rows match summed produce outputs."""
+
+    @pytest.mark.parametrize('word_idx, gold', [
+        (0, np.array([1, 1])),   # 'ban'
+        (1, np.array([1, 2])),   # 'banban'
+    ])
+    def test_row_equals_summed_produce_vectors(self, ldl_with_matrices,
+                                                word_idx, gold):
+        chat_prod = gen_chat_produce(ldl_with_matrices.smat,
+                                     ldl_with_matrices.cmat,
+                                     ldl_with_matrices.fmat,
+                                     ldl_with_matrices.gmat,
+                                     ldl_with_matrices.vmat, backend='numpy')
+        result = produce(gold, ldl_with_matrices.cmat, ldl_with_matrices.fmat,
+                         ldl_with_matrices.gmat, ldl_with_matrices.vmat,
+                         backend='numpy')
+        numeric_cols = result.drop(columns=['Selected'])
+        expected_row = numeric_cols.sum(axis=0).values
+        np.testing.assert_allclose(chat_prod.values[word_idx], expected_row)
+
+
+class TestGenChatProduceParameters:
+    """Test gen_chat_produce with different parameter settings."""
+
+    def test_without_vmat(self, ldl_with_matrices):
+        result = gen_chat_produce(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  apply_vmat=False, backend='numpy')
+        assert isinstance(result, xr.DataArray)
+        assert result.shape == (len(words), ldl_with_matrices.cmat.shape[1])
+
+    def test_positive_true(self, ldl_with_matrices):
+        result = gen_chat_produce(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, positive=True,
+                                  backend='numpy')
+        assert isinstance(result, xr.DataArray)
+        assert result.shape == (len(words), ldl_with_matrices.cmat.shape[1])
+
+    def test_custom_max_attempt(self, ldl_with_matrices):
+        result = gen_chat_produce(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, max_attempt=100,
+                                  backend='numpy')
+        assert isinstance(result, xr.DataArray)
+
+    @pytest.mark.parametrize('roundby', [2, 5, 10])
+    def test_roundby(self, ldl_with_matrices, roundby):
+        result = gen_chat_produce(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, roundby=roundby,
+                                  backend='numpy')
+        assert isinstance(result, xr.DataArray)
+
+    def test_vmat_with_and_without_differ(self, ldl_with_matrices):
+        result_with = gen_chat_produce(ldl_with_matrices.smat,
+                                       ldl_with_matrices.cmat,
+                                       ldl_with_matrices.fmat,
+                                       ldl_with_matrices.gmat,
+                                       ldl_with_matrices.vmat, apply_vmat=True,
+                                       backend='numpy')
+        result_without = gen_chat_produce(ldl_with_matrices.smat,
+                                          ldl_with_matrices.cmat,
+                                          ldl_with_matrices.fmat,
+                                          ldl_with_matrices.gmat,
+                                          apply_vmat=False, backend='numpy')
+        assert result_with.shape == result_without.shape
+
+
+class TestGenChatProduceBackend:
+    """Test gen_chat_produce with different backends."""
+
+    def test_numpy_backend(self, ldl_with_matrices):
+        result = gen_chat_produce(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        assert isinstance(result, xr.DataArray)
+
+    def test_auto_backend(self, ldl_with_matrices):
+        result = gen_chat_produce(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='auto')
+        assert isinstance(result, xr.DataArray)
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_torch_backend(self, ldl_with_matrices):
+        result = gen_chat_produce(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='torch',
+                                  device='cpu')
+        assert isinstance(result, xr.DataArray)
+
+    @pytest.mark.skipif(not HAS_CUDA, reason="CUDA not available")
+    def test_torch_cuda_backend(self, ldl_with_matrices):
+        result = gen_chat_produce(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='torch',
+                                  device='cuda')
+        assert isinstance(result, xr.DataArray)
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_numpy_vs_torch_cpu_match(self, ldl_with_matrices):
+        result_numpy = gen_chat_produce(ldl_with_matrices.smat,
+                                        ldl_with_matrices.cmat,
+                                        ldl_with_matrices.fmat,
+                                        ldl_with_matrices.gmat,
+                                        ldl_with_matrices.vmat,
+                                        backend='numpy')
+        result_torch = gen_chat_produce(ldl_with_matrices.smat,
+                                        ldl_with_matrices.cmat,
+                                        ldl_with_matrices.fmat,
+                                        ldl_with_matrices.gmat,
+                                        ldl_with_matrices.vmat,
+                                        backend='torch', device='cpu')
+        xr.testing.assert_allclose(result_numpy, result_torch)
+
+    @pytest.mark.skipif(not HAS_CUDA, reason="CUDA not available")
+    def test_numpy_vs_torch_cuda_match(self, ldl_with_matrices):
+        result_numpy = gen_chat_produce(ldl_with_matrices.smat,
+                                        ldl_with_matrices.cmat,
+                                        ldl_with_matrices.fmat,
+                                        ldl_with_matrices.gmat,
+                                        ldl_with_matrices.vmat,
+                                        backend='numpy')
+        result_cuda = gen_chat_produce(ldl_with_matrices.smat,
+                                       ldl_with_matrices.cmat,
+                                       ldl_with_matrices.fmat,
+                                       ldl_with_matrices.gmat,
+                                       ldl_with_matrices.vmat,
+                                       backend='torch', device='cuda')
+        xr.testing.assert_allclose(result_numpy, result_cuda)
