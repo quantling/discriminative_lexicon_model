@@ -27,6 +27,7 @@ __all__ = [
     "gen_gmat",
     "gen_shat",
     "gen_chat",
+    "produce",
     "incremental_learning",
     "weight_by_freq",
     "save_mat_as_csv",
@@ -474,6 +475,185 @@ def gen_chat (smat=None, gmat=None, cmat=None, hmat=None):
     else:
         raise ValueError('(S, G), (S, C), or (H, C) is necessary.')
     return chat
+
+def produce (gold, cmat, fmat, gmat, vmat=None, word=False, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None):
+    """
+    Produce output using discriminative learning (standalone version).
+
+    Parameters
+    ----------
+    gold : array-like
+        The target semantic vector.
+    cmat : xarray.DataArray
+        The C-matrix (cue matrix).
+    fmat : xarray.DataArray
+        The F-matrix (mapping from cues to semantics).
+    gmat : xarray.DataArray
+        The G-matrix (mapping from semantics to cues).
+    vmat : xarray.DataArray or None
+        The validity matrix. Required when apply_vmat is True.
+    word : bool
+        If True, concatenate cues to form words.
+    roundby : int
+        Number of decimal places to round vectors.
+    max_attempt : int
+        Maximum number of iterations.
+    positive : bool
+        If True, set negative values to zero.
+    apply_vmat : bool
+        If True, apply validity matrix (vmat must be provided).
+    backend : {'numpy', 'torch', 'auto'}
+        'numpy' -> NumPy CPU implementation.
+        'torch' -> PyTorch implementation (CPU/GPU depending on 'device').
+        'auto'  -> Try torch+CUDA if available, else fall back to NumPy.
+    device : str or None
+        For torch backend: 'cuda', 'cpu', etc. If None and backend is
+        'torch' or 'auto', chooses 'cuda' if available, else 'cpu'.
+    """
+    if apply_vmat and vmat is None:
+        raise ValueError('vmat must be provided when apply_vmat is True.')
+    # Determine which backend to use
+    use_torch = False
+    if backend == 'torch':
+        if torch is None:
+            raise ImportError('PyTorch is not installed. Install it to use the "torch" backend.')
+        use_torch = True
+        if device is None:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    elif backend == 'auto':
+        if torch is not None and (device == 'cuda' or (device is None and torch.cuda.is_available())):
+            use_torch = True
+            device = device or 'cuda'
+    elif backend != 'numpy':
+        raise ValueError(f'Unknown backend "{backend}". Use "numpy", "torch", or "auto".')
+
+    if use_torch:
+        return _produce_torch(gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat, device)
+    else:
+        return _produce_numpy(gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat)
+
+def _produce_numpy (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat):
+    """NumPy implementation of produce (standalone version)."""
+    if not isinstance(gold, np.ndarray):
+        gold = np.array(gold, dtype=np.float32)
+    else:
+        gold = gold.astype(np.float32)
+    p = -1
+    xs = []
+    vecs = []
+    cues_values = cmat.cues.values
+    fmat_values = fmat.values.astype(np.float32)
+    gmat_values = gmat.values.astype(np.float32)
+    if apply_vmat:
+        vmat_values = vmat.values.astype(np.float32)
+    c_comp = np.zeros(cues_values.size, dtype=np.float32)
+    for i in range(max_attempt):
+        s0 = np.matmul(c_comp, fmat_values)
+        if positive:
+            s0[s0<0] = 0
+        s = gold - s0
+        if apply_vmat:
+            vmat_row = vmat_values[p]
+            g = gmat_values * vmat_row
+        else:
+            g = gmat_values
+        c_prod = np.matmul(s, g)
+        if (c_prod<=0).all():
+            break
+        else:
+            p = np.argmax(c_prod)
+            c_comp[p] = c_comp[p] + 1
+            xs.append(cues_values[p])
+            vecs.append(c_prod)
+        is_unigram_onset = len(xs)==1 and len(xs[0])==1 and xs[0]=='#'
+        is_end = (xs[-1][-1]=='#') and (not is_unigram_onset)
+        is_max_iter = i==(max_attempt-1)
+        if is_end or is_max_iter:
+            if is_max_iter:
+                print('The maximum number of iterations ({:d}) reached.'.format(max_attempt))
+            break
+    vecs = [v.round(roundby) for v in vecs]
+    df = pd.DataFrame(vecs).rename(columns={ i:j for i,j in enumerate(cues_values) })
+    hdr = pd.Series(xs).to_frame(name='Selected')
+    df = pd.concat([hdr, df], axis=1)
+    if word:
+        from .ldl import concat_cues
+        df = concat_cues(df.Selected)
+    return df
+
+def _produce_torch (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat, device):
+    """PyTorch implementation of produce with GPU support (standalone version)."""
+    if not isinstance(gold, np.ndarray):
+        gold = np.array(gold)
+
+    # Move data to torch tensors on specified device
+    gold_tensor = torch.as_tensor(gold, dtype=torch.float32, device=device)
+    fmat_tensor = torch.as_tensor(fmat.values, dtype=torch.float32, device=device)
+    gmat_tensor = torch.as_tensor(gmat.values, dtype=torch.float32, device=device)
+
+    if apply_vmat:
+        vmat_tensor = torch.as_tensor(vmat.values, dtype=torch.float32, device=device)
+
+    cues_values = cmat.cues.values
+    n_cues = cues_values.size
+
+    # Pre-allocate tensors on GPU
+    c_comp = torch.zeros(n_cues, dtype=torch.float32, device=device)
+    xs_indices = torch.zeros(max_attempt, dtype=torch.long, device=device)
+    vecs_gpu = torch.zeros((max_attempt, n_cues), dtype=torch.float32, device=device)
+
+    p_tensor = torch.tensor(-1, dtype=torch.long, device=device)
+    actual_iterations = 0
+
+    for i in range(max_attempt):
+        s0 = torch.matmul(c_comp, fmat_tensor)
+        if positive:
+            s0 = torch.clamp(s0, min=0)
+        s = gold_tensor - s0
+
+        if apply_vmat:
+            vmat_row = vmat_tensor[p_tensor]
+            g = gmat_tensor * vmat_row
+        else:
+            g = gmat_tensor
+
+        c_prod = torch.matmul(s, g)
+
+        if (c_prod <= 0).all():
+            break
+        else:
+            p_tensor = torch.argmax(c_prod)
+            c_comp[p_tensor] += 1
+
+            xs_indices[i] = p_tensor
+            vecs_gpu[i] = c_prod
+            actual_iterations = i + 1
+
+        p_cpu = p_tensor.item()
+        selected_cue = cues_values[p_cpu]
+        is_unigram_onset = actual_iterations == 1 and len(selected_cue) == 1 and selected_cue == '#'
+        is_end = (selected_cue[-1] == '#') and (not is_unigram_onset)
+        is_max_iter = i == (max_attempt - 1)
+
+        if is_end or is_max_iter:
+            if is_max_iter:
+                print('The maximum number of iterations ({:d}) reached.'.format(max_attempt))
+            break
+
+    # Single GPU-to-CPU transfer at the end
+    xs_indices_cpu = xs_indices[:actual_iterations].cpu().numpy()
+    vecs_cpu = vecs_gpu[:actual_iterations].cpu().numpy()
+
+    xs = [cues_values[idx] for idx in xs_indices_cpu]
+
+    vecs = [v.round(roundby) for v in vecs_cpu]
+    df = pd.DataFrame(vecs).rename(columns={ i:j for i,j in enumerate(cues_values) })
+    hdr = pd.Series(xs).to_frame(name='Selected')
+    df = pd.concat([hdr, df], axis=1)
+    if word:
+        from .ldl import concat_cues
+        df = concat_cues(df.Selected)
+    return df
 
 def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False, backend='numpy', device=None, batch_size=1, rows_by_index=False, nlms=True):
     """
