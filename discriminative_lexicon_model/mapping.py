@@ -28,6 +28,7 @@ __all__ = [
     "gen_shat",
     "gen_chat",
     "gen_chat_produce",
+    "produce_paradigm",
     "produce",
     "incremental_learning",
     "weight_by_freq",
@@ -564,6 +565,81 @@ def gen_chat_produce (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt
     chat = xr.DataArray(chat, dims=('word', 'cues'),
                         coords={'word': list(words), 'cues': list(cues)})
     return chat
+
+def produce_paradigm (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None):
+    """
+    Apply produce to each word in smat and return a single DataFrame.
+
+    For each word (row of smat), produce() is called to incrementally
+    select cues. The per-word DataFrames are concatenated into one, with
+    'index' (positional index in smat) and 'word' columns prepended.
+
+    Parameters
+    ----------
+    smat : xarray.DataArray
+        S-matrix (semantic matrix), with dims (word, semantics).
+    cmat : xarray.DataArray
+        C-matrix (cue matrix).
+    fmat : xarray.DataArray
+        F-matrix (mapping from cues to semantics).
+    gmat : xarray.DataArray
+        G-matrix (mapping from semantics to cues).
+    vmat : xarray.DataArray or None
+        Validity matrix. Required when apply_vmat is True.
+    roundby : int
+        Number of decimal places to round vectors in produce.
+    max_attempt : int
+        Maximum number of iterations per word.
+    positive : bool
+        If True, set negative values to zero during production.
+    apply_vmat : bool
+        If True, apply validity matrix during production.
+    backend : {'numpy', 'torch', 'auto'}
+        Backend for produce computation.
+    device : str or None
+        Device for torch backend.
+
+    Returns
+    -------
+    df : pandas.DataFrame
+        A DataFrame with columns 'index', 'word', 'pred', 'step', 'Selected',
+        followed by one column per cue with the c-hat values at each
+        time step.
+    """
+    words = smat.word.values
+    dfs = []
+    for i, word in enumerate(words):
+        gold = smat.values[i]
+        result = produce(gold, cmat, fmat, gmat, vmat=vmat, word=False,
+                         roundby=roundby, max_attempt=max_attempt,
+                         positive=positive, apply_vmat=apply_vmat,
+                         backend=backend, device=device)
+        # Compute predicted word from selected cues
+        from .ldl import concat_cues
+        selected = result['Selected']
+        if len(selected) > 0 and selected.iloc[-1].endswith('#'):
+            predicted = concat_cues(selected)
+        else:
+            predicted = ''
+        result.insert(0, 'step', range(len(result)))
+        result.insert(0, 'pred', predicted)
+        result.insert(0, 'word', word)
+        result.insert(0, 'index', i)
+        # Append a sum row for the c-hat vectors
+        numeric_cols = result.drop(columns=['index', 'word', 'pred', 'step', 'Selected'])
+        sum_vals = numeric_cols.sum(axis=0)
+        sum_row = pd.DataFrame([{
+            'index': i,
+            'word': word,
+            'pred': predicted,
+            'step': '(sum)',
+            'Selected': '(sum)',
+            **sum_vals.to_dict(),
+        }])
+        result = pd.concat([result, sum_row], ignore_index=True)
+        dfs.append(result)
+    df = pd.concat(dfs, ignore_index=True)
+    return df
 
 def produce (gold, cmat, fmat, gmat, vmat=None, word=False, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None):
     """

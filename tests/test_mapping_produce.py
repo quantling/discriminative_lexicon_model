@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from discriminative_lexicon_model.ldl import LDL
-from discriminative_lexicon_model.mapping import produce, gen_chat_produce, gen_chat
+from discriminative_lexicon_model.mapping import produce, gen_chat_produce, gen_chat, produce_paradigm
 
 try:
     import torch
@@ -772,3 +772,287 @@ class TestGenChatProduceBackend:
                                        ldl_with_matrices.vmat,
                                        backend='torch', device='cuda')
         xr.testing.assert_allclose(result_numpy, result_cuda)
+
+
+# ============================================================
+# Part 4: produce_paradigm tests
+# ============================================================
+
+class TestProduceParadigmBasic:
+    """Basic tests for produce_paradigm."""
+
+    def test_returns_dataframe(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        assert isinstance(result, pd.DataFrame)
+
+    def test_has_required_columns(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        assert 'index' in result.columns
+        assert 'word' in result.columns
+        assert 'pred' in result.columns
+        assert 'step' in result.columns
+        assert 'Selected' in result.columns
+
+    def test_has_cue_columns(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        cues = ldl_with_matrices.cmat.cues.values
+        for cue in cues:
+            assert cue in result.columns
+
+    def test_column_order(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        assert list(result.columns[:5]) == ['index', 'word', 'pred', 'step', 'Selected']
+
+    def test_all_words_present(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        expected_words = list(ldl_with_matrices.smat.word.values)
+        result_words = result.groupby('index')['word'].first().tolist()
+        assert result_words == expected_words
+
+    def test_index_values(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        n_words = ldl_with_matrices.smat.shape[0]
+        expected_indices = list(range(n_words))
+        actual_indices = sorted(result['index'].unique())
+        assert actual_indices == expected_indices
+
+
+class TestProduceParadigmSumRow:
+    """Tests for the (sum) row in produce_paradigm."""
+
+    def test_each_word_has_sum_row(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        n_words = ldl_with_matrices.smat.shape[0]
+        sum_rows = result[result['step'] == '(sum)']
+        assert len(sum_rows) == n_words
+
+    def test_sum_row_selected_is_sum(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        sum_rows = result[result['step'] == '(sum)']
+        assert (sum_rows['Selected'] == '(sum)').all()
+
+    def test_sum_row_values_equal_column_sums(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        cues = list(ldl_with_matrices.cmat.cues.values)
+        for idx in result['index'].unique():
+            word_rows = result[result['index'] == idx]
+            step_rows = word_rows[word_rows['step'] != '(sum)']
+            sum_row = word_rows[word_rows['step'] == '(sum)']
+            expected = step_rows[cues].sum(axis=0).values
+            actual = sum_row[cues].values.flatten()
+            np.testing.assert_allclose(actual, expected)
+
+    def test_sum_row_is_last_per_word(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        for idx in result['index'].unique():
+            word_rows = result[result['index'] == idx]
+            last_row = word_rows.iloc[-1]
+            assert last_row['step'] == '(sum)'
+
+    def test_sum_row_index_is_int(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        sum_rows = result[result['step'] == '(sum)']
+        for val in sum_rows['index']:
+            assert isinstance(val, (int, np.integer))
+
+
+class TestProduceParadigmPredicted:
+    """Tests for the predicted column in produce_paradigm."""
+
+    def test_predicted_starts_and_ends_with_boundary(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        for predicted in result['pred'].unique():
+            if predicted:  # skip empty string for incomplete productions
+                assert predicted.startswith('#')
+                assert predicted.endswith('#')
+
+    def test_predicted_same_for_all_rows_of_word(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        for idx in result['index'].unique():
+            word_rows = result[result['index'] == idx]
+            assert word_rows['pred'].nunique() == 1
+
+    def test_predicted_matches_produce_word(self, ldl_with_matrices):
+        """Test that predicted column matches produce(..., word=True)."""
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        smat = ldl_with_matrices.smat
+        for i in range(smat.shape[0]):
+            gold = smat.values[i]
+            expected = produce(gold, ldl_with_matrices.cmat,
+                               ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                               ldl_with_matrices.vmat, word=True,
+                               backend='numpy')
+            word_rows = result[result['index'] == i]
+            assert word_rows['pred'].iloc[0] == expected
+
+
+class TestProduceParadigmConsistencyWithProduce:
+    """Test that produce_paradigm rows match individual produce calls."""
+
+    @pytest.mark.parametrize('word_idx, gold', [
+        (0, np.array([1, 1])),   # 'ban'
+        (1, np.array([1, 2])),   # 'banban'
+    ])
+    def test_step_rows_match_produce(self, ldl_with_matrices, word_idx, gold):
+        paradigm = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                    ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                    ldl_with_matrices.vmat, backend='numpy')
+        individual = produce(gold, ldl_with_matrices.cmat,
+                             ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                             ldl_with_matrices.vmat, backend='numpy')
+        # Get step rows (exclude sum row) for this word
+        word_rows = paradigm[paradigm['index'] == word_idx]
+        step_rows = word_rows[word_rows['step'] != '(sum)']
+        # Selected cues should match
+        assert list(step_rows['Selected'].values) == list(individual['Selected'].values)
+        # Cue values should match
+        cues = list(ldl_with_matrices.cmat.cues.values)
+        np.testing.assert_allclose(
+            step_rows[cues].values.astype(float),
+            individual[cues].values.astype(float),
+        )
+
+    @pytest.mark.parametrize('word_idx, gold', [
+        (0, np.array([1, 1])),
+        (1, np.array([1, 2])),
+    ])
+    def test_sum_row_matches_gen_chat_produce(self, ldl_with_matrices, word_idx, gold):
+        paradigm = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                    ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                    ldl_with_matrices.vmat, backend='numpy')
+        chat_prod = gen_chat_produce(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                     ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                     ldl_with_matrices.vmat, backend='numpy')
+        cues = list(ldl_with_matrices.cmat.cues.values)
+        word_rows = paradigm[paradigm['index'] == word_idx]
+        sum_row = word_rows[word_rows['step'] == '(sum)']
+        np.testing.assert_allclose(
+            sum_row[cues].values.flatten().astype(float),
+            chat_prod.values[word_idx],
+        )
+
+
+class TestProduceParadigmParameters:
+    """Test produce_paradigm with different parameter settings."""
+
+    def test_without_vmat(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  apply_vmat=False, backend='numpy')
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+
+    def test_positive_true(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, positive=True,
+                                  backend='numpy')
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+
+    def test_custom_max_attempt(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, max_attempt=100,
+                                  backend='numpy')
+        assert isinstance(result, pd.DataFrame)
+
+
+class TestProduceParadigmBackend:
+    """Test produce_paradigm with different backends."""
+
+    def test_numpy_backend(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy')
+        assert isinstance(result, pd.DataFrame)
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_torch_backend(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='torch',
+                                  device='cpu')
+        assert isinstance(result, pd.DataFrame)
+
+    @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    def test_numpy_vs_torch_cpu_match(self, ldl_with_matrices):
+        result_numpy = produce_paradigm(ldl_with_matrices.smat,
+                                        ldl_with_matrices.cmat,
+                                        ldl_with_matrices.fmat,
+                                        ldl_with_matrices.gmat,
+                                        ldl_with_matrices.vmat,
+                                        backend='numpy')
+        result_torch = produce_paradigm(ldl_with_matrices.smat,
+                                        ldl_with_matrices.cmat,
+                                        ldl_with_matrices.fmat,
+                                        ldl_with_matrices.gmat,
+                                        ldl_with_matrices.vmat,
+                                        backend='torch', device='cpu')
+        assert list(result_numpy['Selected']) == list(result_torch['Selected'])
+        assert list(result_numpy['pred']) == list(result_torch['pred'])
+        cues = list(ldl_with_matrices.cmat.cues.values)
+        np.testing.assert_allclose(
+            result_numpy[cues].values.astype(float),
+            result_torch[cues].values.astype(float),
+        )
+
+
+class TestProduceParadigmDuplicateWords:
+    """Test produce_paradigm with duplicate word labels in smat."""
+
+    def test_duplicate_words_have_distinct_indices(self):
+        """Test that duplicate words are distinguishable by index."""
+        # Build smat with duplicate words
+        dup_words = ['ban', 'ban']
+        dup_semdf = pd.DataFrame({'hit': [1, 1], 'intensity': [1, 2]},
+                                 index=dup_words)
+        ldl = LDL(dup_words, dup_semdf, allmatrices=True)
+        result = produce_paradigm(ldl.smat, ldl.cmat, ldl.fmat, ldl.gmat,
+                                  ldl.vmat, backend='numpy')
+        indices = sorted(result['index'].unique())
+        assert indices == [0, 1]
+        # Both should have 'ban' as word
+        for idx in indices:
+            word_rows = result[result['index'] == idx]
+            assert (word_rows['word'] == 'ban').all()
+
+    def test_duplicate_words_each_have_sum_row(self):
+        """Test that each duplicate word gets its own sum row."""
+        dup_words = ['ban', 'ban']
+        dup_semdf = pd.DataFrame({'hit': [1, 1], 'intensity': [1, 2]},
+                                 index=dup_words)
+        ldl = LDL(dup_words, dup_semdf, allmatrices=True)
+        result = produce_paradigm(ldl.smat, ldl.cmat, ldl.fmat, ldl.gmat,
+                                  ldl.vmat, backend='numpy')
+        sum_rows = result[result['step'] == '(sum)']
+        assert len(sum_rows) == 2
+        assert list(sum_rows['index']) == [0, 1]
