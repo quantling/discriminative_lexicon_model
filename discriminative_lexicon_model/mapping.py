@@ -48,10 +48,37 @@ def to_cues (words, gram=3):
     cues = list(dict.fromkeys([ j for i in cues for j in i ]))
     return cues
 
-def gen_vmat (words, gram=3, cues=None):
+def gen_vmat (words=None, gram=3, cues=None):
+    """
+    Generate a validity matrix (V-matrix) from a set of cues.
+
+    Parameters
+    ----------
+    words : list-like or None
+        Deprecated. A list of words from which cues will be derived. Use
+        cues parameter instead.
+    gram : int
+        N-gram size. Only used when deriving cues from words (deprecated).
+    cues : list-like or None
+        A list of cues (e.g., trigrams). If provided, words and gram are
+        ignored. This is the recommended parameter.
+
+    Returns
+    -------
+    vmat : xarray.DataArray
+        Validity matrix with dims (current, next).
+    """
     if cues is None:
+        if words is None:
+            raise ValueError('Either cues or words must be provided.')
+        warnings.warn(
+            'Passing words to gen_vmat is deprecated. '
+            'Pass cues instead, e.g. gen_vmat(cues=to_cues(words, gram=gram)).',
+            DeprecationWarning,
+            stacklevel=2,
+        )
         cues = to_cues(words, gram=gram)
-    # gram = infer_gram(cues)
+    gram = infer_gram(cues)
     cur  = [ i[-(gram-1):] for i in cues ]
     nex  = [ i[:(gram-1)]  for i in cues ]
     vmat = np.equal.outer(cur, nex)

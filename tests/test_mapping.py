@@ -286,3 +286,59 @@ def test_gen_vmat ():
     vmat0 = xr.DataArray(vmat0_values, dims=vmat0_dims, coords={'current':vmat0_current_values, 'next':vmat0_next_values})
     assert vmat0.identical(vmat_test)
 
+def test_gen_vmat_with_cues ():
+    """Test gen_vmat with cues parameter (new recommended usage)."""
+    words = ['abx', 'aby']
+    cues = pm.to_cues(words, gram=3)
+    vmat_from_cues = pm.gen_vmat(cues=cues)
+    # Should match the old words-based result
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', DeprecationWarning)
+        vmat_from_words = pm.gen_vmat(words)
+    assert vmat_from_words.identical(vmat_from_cues)
+
+def test_gen_vmat_cues_keyword_only ():
+    """Test gen_vmat with cues passed as keyword argument."""
+    cues = ['#ba', 'ban', 'an#', 'anb', 'nba']
+    vmat = pm.gen_vmat(cues=cues)
+    assert isinstance(vmat, xr.DataArray)
+    assert vmat.dims == ('current', 'next')
+    assert list(vmat.next.values) == cues
+    # current has one extra row (the empty-string onset row)
+    assert list(vmat.current.values) == cues + ['']
+
+def test_gen_vmat_words_deprecation_warning ():
+    """Test that passing words emits a DeprecationWarning."""
+    import warnings
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter('always')
+        pm.gen_vmat(['abx', 'aby'])
+        assert len(w) == 1
+        assert issubclass(w[0].category, DeprecationWarning)
+        assert 'deprecated' in str(w[0].message).lower()
+
+def test_gen_vmat_cues_no_warning ():
+    """Test that passing cues does not emit a DeprecationWarning."""
+    import warnings
+    cues = pm.to_cues(['abx', 'aby'], gram=3)
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter('always')
+        pm.gen_vmat(cues=cues)
+        dep_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
+        assert len(dep_warnings) == 0
+
+def test_gen_vmat_no_args_raises ():
+    """Test that calling gen_vmat with no arguments raises ValueError."""
+    with pytest.raises(ValueError, match='Either cues or words'):
+        pm.gen_vmat()
+
+def test_gen_vmat_cues_different_gram ():
+    """Test gen_vmat with cues of different gram sizes."""
+    words = ['abx', 'aby']
+    for gram in [2, 3]:
+        cues = pm.to_cues(words, gram=gram)
+        vmat = pm.gen_vmat(cues=cues)
+        assert isinstance(vmat, xr.DataArray)
+        assert list(vmat.next.values) == cues
+
