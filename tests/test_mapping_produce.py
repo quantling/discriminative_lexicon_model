@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from discriminative_lexicon_model.ldl import LDL
-from discriminative_lexicon_model.mapping import produce, gen_chat_produce, gen_chat, produce_paradigm
+from discriminative_lexicon_model.mapping import produce, gen_chat_produce, gen_chat, produce_paradigm, _concat_selected
 
 try:
     import torch
@@ -1471,3 +1471,118 @@ class TestProduceParadigmTolParameter:
                                        ldl_with_matrices.gmat,
                                        ldl_with_matrices.vmat, tol=0.5)
         assert len(result_high) <= len(result_low)
+
+
+# ============================================================
+# Part 7: _concat_selected tests
+# ============================================================
+
+class TestConcatSelectedOverlap:
+    """Test _concat_selected with overlap=True."""
+
+    def test_empty_list(self):
+        assert _concat_selected([], overlap=True) == ''
+
+    def test_single_cue(self):
+        assert _concat_selected(['abc'], overlap=True) == 'abc'
+
+    def test_two_overlapping_cues(self):
+        assert _concat_selected(['ab', 'bc'], overlap=True) == 'abc'
+
+    def test_three_overlapping_cues(self):
+        assert _concat_selected(['ab', 'bc', 'cd'], overlap=True) == 'abcd'
+
+    def test_trigrams(self):
+        assert _concat_selected(['#ba', 'ban', 'an#'], overlap=True) == '#ban#'
+
+    def test_trigrams_long_word(self):
+        assert _concat_selected(['#ba', 'ban', 'anb', 'nba', 'ban', 'an#'], overlap=True) == '#banban#'
+
+    def test_matches_concat_cues(self, ldl_with_matrices):
+        """Should match the old concat_cues for overlapping trigrams."""
+        from discriminative_lexicon_model.ldl import concat_cues
+        gold = np.array([1, 2])
+        result = produce(gold, ldl_with_matrices.cmat, ldl_with_matrices.fmat,
+                         ldl_with_matrices.gmat, ldl_with_matrices.vmat,
+                         stop='boundary')
+        selected = result['Selected']
+        old = concat_cues(selected)
+        new = _concat_selected(selected, overlap=True)
+        assert old == new
+
+    def test_pandas_series_input(self):
+        selected = pd.Series(['#ba', 'ban', 'an#'])
+        assert _concat_selected(selected, overlap=True) == '#ban#'
+
+
+class TestConcatSelectedNoOverlap:
+    """Test _concat_selected with overlap=False."""
+
+    def test_empty_list(self):
+        assert _concat_selected([], overlap=False) == ''
+
+    def test_single_cue(self):
+        assert _concat_selected(['abc'], overlap=False) == 'abc'
+
+    def test_simple_concat(self):
+        assert _concat_selected(['a', 'b', 'c'], overlap=False) == 'abc'
+
+    def test_multi_char_cues(self):
+        assert _concat_selected(['ab', 'cd', 'ef'], overlap=False) == 'abcdef'
+
+    def test_pandas_series_input(self):
+        selected = pd.Series(['ab', 'cd'])
+        assert _concat_selected(selected, overlap=False) == 'abcd'
+
+
+class TestConcatSelectedInProduce:
+    """Test that _concat_selected is used correctly in produce and produce_paradigm."""
+
+    def test_produce_word_true_with_vmat(self, ldl_with_matrices):
+        """produce(word=True, apply_vmat=True) should use overlap concatenation."""
+        gold = np.array([1, 1])
+        word_result = produce(gold, ldl_with_matrices.cmat, ldl_with_matrices.fmat,
+                              ldl_with_matrices.gmat, ldl_with_matrices.vmat,
+                              word=True, apply_vmat=True, stop='boundary')
+        df_result = produce(gold, ldl_with_matrices.cmat, ldl_with_matrices.fmat,
+                            ldl_with_matrices.gmat, ldl_with_matrices.vmat,
+                            word=False, apply_vmat=True, stop='boundary')
+        expected = _concat_selected(df_result['Selected'], overlap=True)
+        assert word_result == expected
+
+    def test_produce_word_true_without_vmat(self, ldl_with_matrices):
+        """produce(word=True, apply_vmat=False) should use simple concatenation."""
+        gold = np.array([1, 1])
+        word_result = produce(gold, ldl_with_matrices.cmat, ldl_with_matrices.fmat,
+                              ldl_with_matrices.gmat, word=True,
+                              apply_vmat=False, stop='convergence')
+        df_result = produce(gold, ldl_with_matrices.cmat, ldl_with_matrices.fmat,
+                            ldl_with_matrices.gmat, word=False,
+                            apply_vmat=False, stop='convergence')
+        expected = _concat_selected(df_result['Selected'], overlap=False)
+        assert word_result == expected
+
+    def test_produce_paradigm_pred_with_vmat(self, ldl_with_matrices):
+        """produce_paradigm pred column should use overlap concatenation."""
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, apply_vmat=True,
+                                  stop='boundary')
+        for idx in result['index'].unique():
+            word_rows = result[result['index'] == idx]
+            step_rows = word_rows[word_rows['step'] != '(sum)']
+            selected = step_rows['Selected']
+            expected = _concat_selected(selected, overlap=True)
+            assert (word_rows['pred'] == expected).all()
+
+    def test_produce_paradigm_pred_without_vmat(self, ldl_with_matrices):
+        """produce_paradigm pred column should use simple concatenation without vmat."""
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  apply_vmat=False, stop='convergence')
+        for idx in result['index'].unique():
+            word_rows = result[result['index'] == idx]
+            step_rows = word_rows[word_rows['step'] != '(sum)']
+            selected = step_rows['Selected']
+            expected = _concat_selected(selected, overlap=False)
+            assert (word_rows['pred'] == expected).all()

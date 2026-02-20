@@ -44,6 +44,32 @@ try:
 except ImportError:
     torch = None
 
+def _concat_selected (selected, overlap):
+    """Concatenate selected cues into a predicted word string.
+
+    Parameters
+    ----------
+    selected : list-like of str
+        The selected cue strings.
+    overlap : bool
+        If True, adjacent cues overlap by len(cue)-1 characters (as
+        guaranteed by the V-matrix), so only the first character of each
+        cue (except the last) is taken.  If False, cues are simply
+        concatenated.
+
+    Returns
+    -------
+    str
+        The concatenated predicted word.
+    """
+    cues = list(selected)
+    if len(cues) == 0:
+        return ''
+    if overlap:
+        return ''.join(c[0] for c in cues[:-1]) + cues[-1]
+    else:
+        return ''.join(cues)
+
 def to_cues (words, gram=3):
     cues = [ to_ngram(i, gram=gram) for i in words ]
     cues = list(dict.fromkeys([ j for i in cues for j in i ]))
@@ -623,12 +649,8 @@ def produce_paradigm (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt
                          positive=positive, apply_vmat=apply_vmat,
                          backend=backend, device=device, stop=stop, tol=tol)
         # Compute predicted word from selected cues
-        from .ldl import concat_cues
         selected = result['Selected']
-        if len(selected) > 0 and selected.iloc[-1].endswith('#'):
-            predicted = concat_cues(selected)
-        else:
-            predicted = ''
+        predicted = _concat_selected(selected, overlap=apply_vmat)
         result.insert(0, 'step', range(len(result)))
         result.insert(0, 'pred', predicted)
         result.insert(0, 'word', word)
@@ -759,8 +781,7 @@ def _produce_numpy (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, po
     hdr = pd.Series(xs).to_frame(name='Selected')
     df = pd.concat([hdr, df], axis=1)
     if word:
-        from .ldl import concat_cues
-        df = concat_cues(df.Selected)
+        df = _concat_selected(df.Selected, overlap=apply_vmat)
     return df
 
 def _produce_torch (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat, device, stop, tol):
@@ -832,8 +853,7 @@ def _produce_torch (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, po
     hdr = pd.Series(xs).to_frame(name='Selected')
     df = pd.concat([hdr, df], axis=1)
     if word:
-        from .ldl import concat_cues
-        df = concat_cues(df.Selected)
+        df = _concat_selected(df.Selected, overlap=apply_vmat)
     return df
 
 def incremental_learning (rows, cue_matrix, out_matrix, learning_rate=0.1, weight_matrix=None, return_intermediate_weights=False, backend='numpy', device=None, batch_size=1, rows_by_index=False, nlms=True):
