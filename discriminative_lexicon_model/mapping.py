@@ -505,7 +505,7 @@ def gen_chat (smat=None, gmat=None, cmat=None, hmat=None):
         raise ValueError('(S, G), (S, C), or (H, C) is necessary.')
     return chat
 
-def gen_chat_produce (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None):
+def gen_chat_produce (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None, stop='convergence'):
     """
     Generate predicted cue matrix (C-hat) using incremental production.
 
@@ -540,6 +540,8 @@ def gen_chat_produce (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt
         Backend for produce computation.
     device : str or None
         Device for torch backend.
+    stop : {'convergence', 'boundary'}
+        Stopping criterion passed to produce().
 
     Returns
     -------
@@ -554,7 +556,7 @@ def gen_chat_produce (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt
         result = produce(gold, cmat, fmat, gmat, vmat=vmat, word=False,
                          roundby=roundby, max_attempt=max_attempt,
                          positive=positive, apply_vmat=apply_vmat,
-                         backend=backend, device=device)
+                         backend=backend, device=device, stop=stop)
         numeric_cols = result.drop(columns=['Selected'])
         if len(numeric_cols) == 0:
             row_sum = np.zeros(len(cues))
@@ -566,7 +568,7 @@ def gen_chat_produce (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt
                         coords={'word': list(words), 'cues': list(cues)})
     return chat
 
-def produce_paradigm (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None):
+def produce_paradigm (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None, stop='convergence'):
     """
     Apply produce to each word in smat and return a single DataFrame.
 
@@ -598,6 +600,8 @@ def produce_paradigm (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt
         Backend for produce computation.
     device : str or None
         Device for torch backend.
+    stop : {'convergence', 'boundary'}
+        Stopping criterion passed to produce().
 
     Returns
     -------
@@ -613,7 +617,7 @@ def produce_paradigm (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt
         result = produce(gold, cmat, fmat, gmat, vmat=vmat, word=False,
                          roundby=roundby, max_attempt=max_attempt,
                          positive=positive, apply_vmat=apply_vmat,
-                         backend=backend, device=device)
+                         backend=backend, device=device, stop=stop)
         # Compute predicted word from selected cues
         from .ldl import concat_cues
         selected = result['Selected']
@@ -641,7 +645,7 @@ def produce_paradigm (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt
     df = pd.concat(dfs, ignore_index=True)
     return df
 
-def produce (gold, cmat, fmat, gmat, vmat=None, word=False, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None):
+def produce (gold, cmat, fmat, gmat, vmat=None, word=False, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None, stop='convergence'):
     """
     Produce output using discriminative learning (standalone version).
 
@@ -674,9 +678,15 @@ def produce (gold, cmat, fmat, gmat, vmat=None, word=False, roundby=10, max_atte
     device : str or None
         For torch backend: 'cuda', 'cpu', etc. If None and backend is
         'torch' or 'auto', chooses 'cuda' if available, else 'cpu'.
+    stop : {'convergence', 'boundary'}
+        'convergence' -> Stop when no cue can improve the semantic
+            approximation (all c_prod values <= 0).
+        'boundary' -> Also stop when a cue ending with '#' is selected.
     """
     if apply_vmat and vmat is None:
         raise ValueError('vmat must be provided when apply_vmat is True.')
+    if stop not in ('convergence', 'boundary'):
+        raise ValueError(f'Unknown stop "{stop}". Use "convergence" or "boundary".')
     # Determine which backend to use
     use_torch = False
     if backend == 'torch':
@@ -693,11 +703,11 @@ def produce (gold, cmat, fmat, gmat, vmat=None, word=False, roundby=10, max_atte
         raise ValueError(f'Unknown backend "{backend}". Use "numpy", "torch", or "auto".')
 
     if use_torch:
-        return _produce_torch(gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat, device)
+        return _produce_torch(gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat, device, stop)
     else:
-        return _produce_numpy(gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat)
+        return _produce_numpy(gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat, stop)
 
-def _produce_numpy (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat):
+def _produce_numpy (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat, stop):
     """NumPy implementation of produce (standalone version)."""
     if not isinstance(gold, np.ndarray):
         gold = np.array(gold, dtype=np.float32)
@@ -730,13 +740,13 @@ def _produce_numpy (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, po
             c_comp[p] = c_comp[p] + 1
             xs.append(cues_values[p])
             vecs.append(c_prod)
-        is_unigram_onset = len(xs)==1 and len(xs[0])==1 and xs[0]=='#'
-        is_end = (xs[-1][-1]=='#') and (not is_unigram_onset)
-        is_max_iter = i==(max_attempt-1)
-        if is_end or is_max_iter:
-            if is_max_iter:
-                print('The maximum number of iterations ({:d}) reached.'.format(max_attempt))
-            break
+        if stop == 'boundary':
+            is_unigram_onset = len(xs)==1 and len(xs[0])==1 and xs[0]=='#'
+            is_end = (xs[-1][-1]=='#') and (not is_unigram_onset)
+            if is_end:
+                break
+        if i==(max_attempt-1):
+            print('The maximum number of iterations ({:d}) reached.'.format(max_attempt))
     vecs = [v.round(roundby) for v in vecs]
     df = pd.DataFrame(vecs).rename(columns={ i:j for i,j in enumerate(cues_values) })
     hdr = pd.Series(xs).to_frame(name='Selected')
@@ -746,7 +756,7 @@ def _produce_numpy (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, po
         df = concat_cues(df.Selected)
     return df
 
-def _produce_torch (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat, device):
+def _produce_torch (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat, device, stop):
     """PyTorch implementation of produce with GPU support (standalone version)."""
     if not isinstance(gold, np.ndarray):
         gold = np.array(gold)
@@ -794,16 +804,15 @@ def _produce_torch (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, po
             vecs_gpu[i] = c_prod
             actual_iterations = i + 1
 
-        p_cpu = p_tensor.item()
-        selected_cue = cues_values[p_cpu]
-        is_unigram_onset = actual_iterations == 1 and len(selected_cue) == 1 and selected_cue == '#'
-        is_end = (selected_cue[-1] == '#') and (not is_unigram_onset)
-        is_max_iter = i == (max_attempt - 1)
-
-        if is_end or is_max_iter:
-            if is_max_iter:
-                print('The maximum number of iterations ({:d}) reached.'.format(max_attempt))
-            break
+        if stop == 'boundary':
+            p_cpu = p_tensor.item()
+            selected_cue = cues_values[p_cpu]
+            is_unigram_onset = actual_iterations == 1 and len(selected_cue) == 1 and selected_cue == '#'
+            is_end = (selected_cue[-1] == '#') and (not is_unigram_onset)
+            if is_end:
+                break
+        if i == (max_attempt - 1):
+            print('The maximum number of iterations ({:d}) reached.'.format(max_attempt))
 
     # Single GPU-to-CPU transfer at the end
     xs_indices_cpu = xs_indices[:actual_iterations].cpu().numpy()
