@@ -505,7 +505,7 @@ def gen_chat (smat=None, gmat=None, cmat=None, hmat=None):
         raise ValueError('(S, G), (S, C), or (H, C) is necessary.')
     return chat
 
-def gen_chat_produce (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None, stop='convergence'):
+def gen_chat_produce (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None, stop='convergence', tol=0.0):
     """
     Generate predicted cue matrix (C-hat) using incremental production.
 
@@ -542,6 +542,8 @@ def gen_chat_produce (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt
         Device for torch backend.
     stop : {'convergence', 'boundary'}
         Stopping criterion passed to produce().
+    tol : float
+        Tolerance for the convergence check, passed to produce().
 
     Returns
     -------
@@ -556,7 +558,7 @@ def gen_chat_produce (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt
         result = produce(gold, cmat, fmat, gmat, vmat=vmat, word=False,
                          roundby=roundby, max_attempt=max_attempt,
                          positive=positive, apply_vmat=apply_vmat,
-                         backend=backend, device=device, stop=stop)
+                         backend=backend, device=device, stop=stop, tol=tol)
         numeric_cols = result.drop(columns=['Selected'])
         if len(numeric_cols) == 0:
             row_sum = np.zeros(len(cues))
@@ -568,7 +570,7 @@ def gen_chat_produce (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt
                         coords={'word': list(words), 'cues': list(cues)})
     return chat
 
-def produce_paradigm (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None, stop='convergence'):
+def produce_paradigm (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None, stop='convergence', tol=0.0):
     """
     Apply produce to each word in smat and return a single DataFrame.
 
@@ -602,6 +604,8 @@ def produce_paradigm (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt
         Device for torch backend.
     stop : {'convergence', 'boundary'}
         Stopping criterion passed to produce().
+    tol : float
+        Tolerance for the convergence check, passed to produce().
 
     Returns
     -------
@@ -617,7 +621,7 @@ def produce_paradigm (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt
         result = produce(gold, cmat, fmat, gmat, vmat=vmat, word=False,
                          roundby=roundby, max_attempt=max_attempt,
                          positive=positive, apply_vmat=apply_vmat,
-                         backend=backend, device=device, stop=stop)
+                         backend=backend, device=device, stop=stop, tol=tol)
         # Compute predicted word from selected cues
         from .ldl import concat_cues
         selected = result['Selected']
@@ -645,7 +649,7 @@ def produce_paradigm (smat, cmat, fmat, gmat, vmat=None, roundby=10, max_attempt
     df = pd.concat(dfs, ignore_index=True)
     return df
 
-def produce (gold, cmat, fmat, gmat, vmat=None, word=False, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None, stop='convergence'):
+def produce (gold, cmat, fmat, gmat, vmat=None, word=False, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None, stop='convergence', tol=0.0):
     """
     Produce output using discriminative learning (standalone version).
 
@@ -680,8 +684,11 @@ def produce (gold, cmat, fmat, gmat, vmat=None, word=False, roundby=10, max_atte
         'torch' or 'auto', chooses 'cuda' if available, else 'cpu'.
     stop : {'convergence', 'boundary'}
         'convergence' -> Stop when no cue can improve the semantic
-            approximation (all c_prod values <= 0).
+            approximation (all c_prod values <= tol).
         'boundary' -> Also stop when a cue ending with '#' is selected.
+    tol : float
+        Tolerance for the convergence check. The algorithm stops when all
+        c_prod values are <= tol. Default is 0.0.
     """
     if apply_vmat and vmat is None:
         raise ValueError('vmat must be provided when apply_vmat is True.')
@@ -703,11 +710,11 @@ def produce (gold, cmat, fmat, gmat, vmat=None, word=False, roundby=10, max_atte
         raise ValueError(f'Unknown backend "{backend}". Use "numpy", "torch", or "auto".')
 
     if use_torch:
-        return _produce_torch(gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat, device, stop)
+        return _produce_torch(gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat, device, stop, tol)
     else:
-        return _produce_numpy(gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat, stop)
+        return _produce_numpy(gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat, stop, tol)
 
-def _produce_numpy (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat, stop):
+def _produce_numpy (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat, stop, tol):
     """NumPy implementation of produce (standalone version)."""
     if not isinstance(gold, np.ndarray):
         gold = np.array(gold, dtype=np.float32)
@@ -733,7 +740,7 @@ def _produce_numpy (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, po
         else:
             g = gmat_values
         c_prod = np.matmul(s, g)
-        if (c_prod<=0).all():
+        if (c_prod<=tol).all():
             break
         else:
             p = np.argmax(c_prod)
@@ -756,7 +763,7 @@ def _produce_numpy (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, po
         df = concat_cues(df.Selected)
     return df
 
-def _produce_torch (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat, device, stop):
+def _produce_torch (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, positive, apply_vmat, device, stop, tol):
     """PyTorch implementation of produce with GPU support (standalone version)."""
     if not isinstance(gold, np.ndarray):
         gold = np.array(gold)
@@ -794,7 +801,7 @@ def _produce_torch (gold, cmat, fmat, gmat, vmat, word, roundby, max_attempt, po
 
         c_prod = torch.matmul(s, g)
 
-        if (c_prod <= 0).all():
+        if (c_prod <= tol).all():
             break
         else:
             p_tensor = torch.argmax(c_prod)

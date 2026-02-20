@@ -1277,3 +1277,197 @@ class TestProduceParadigmStopParameter:
                                               ldl_with_matrices.vmat,
                                               stop='convergence')
         assert len(result_convergence) >= len(result_boundary)
+
+
+# ============================================================
+# Part 6: tol parameter tests
+# ============================================================
+
+class TestProduceTolParameter:
+    """Test the tol parameter for produce."""
+
+    def test_tol_zero_is_default(self, ldl_with_matrices):
+        """tol=0.0 should match the default behavior."""
+        gold = np.array([1, 2])
+        result_default = produce(gold, ldl_with_matrices.cmat,
+                                 ldl_with_matrices.fmat,
+                                 ldl_with_matrices.gmat,
+                                 ldl_with_matrices.vmat, backend='numpy')
+        result_explicit = produce(gold, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat,
+                                  ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy',
+                                  tol=0.0)
+        pd.testing.assert_frame_equal(result_default, result_explicit)
+
+    def test_higher_tol_fewer_or_equal_steps(self, ldl_with_matrices):
+        """Higher tolerance should produce fewer or equal steps."""
+        gold = np.array([1, 2])
+        result_low = produce(gold, ldl_with_matrices.cmat,
+                             ldl_with_matrices.fmat,
+                             ldl_with_matrices.gmat,
+                             ldl_with_matrices.vmat, tol=0.0)
+        result_high = produce(gold, ldl_with_matrices.cmat,
+                              ldl_with_matrices.fmat,
+                              ldl_with_matrices.gmat,
+                              ldl_with_matrices.vmat, tol=1e6)
+        assert len(result_high) <= len(result_low)
+
+    def test_very_large_tol_produces_empty(self, ldl_with_matrices):
+        """A very large tol should stop immediately."""
+        gold = np.array([1, 2])
+        result = produce(gold, ldl_with_matrices.cmat,
+                         ldl_with_matrices.fmat,
+                         ldl_with_matrices.gmat,
+                         ldl_with_matrices.vmat, tol=1e30)
+        assert len(result) == 0
+
+    def test_small_tol_same_as_zero(self, ldl_with_matrices):
+        """A very small tol should behave the same as tol=0."""
+        gold = np.array([1, 2])
+        result_zero = produce(gold, ldl_with_matrices.cmat,
+                              ldl_with_matrices.fmat,
+                              ldl_with_matrices.gmat,
+                              ldl_with_matrices.vmat, tol=0.0)
+        result_tiny = produce(gold, ldl_with_matrices.cmat,
+                              ldl_with_matrices.fmat,
+                              ldl_with_matrices.gmat,
+                              ldl_with_matrices.vmat, tol=1e-30)
+        pd.testing.assert_frame_equal(result_zero, result_tiny)
+
+    def test_tol_prefix_property(self, ldl_with_matrices):
+        """Result with higher tol should be a prefix of result with lower tol."""
+        gold = np.array([1, 2])
+        result_low = produce(gold, ldl_with_matrices.cmat,
+                             ldl_with_matrices.fmat,
+                             ldl_with_matrices.gmat,
+                             ldl_with_matrices.vmat, tol=0.0)
+        result_high = produce(gold, ldl_with_matrices.cmat,
+                              ldl_with_matrices.fmat,
+                              ldl_with_matrices.gmat,
+                              ldl_with_matrices.vmat, tol=0.5)
+        n = len(result_high)
+        if n > 0:
+            pd.testing.assert_frame_equal(
+                result_low.iloc[:n].reset_index(drop=True),
+                result_high.reset_index(drop=True))
+
+    def test_negative_tol(self, ldl_with_matrices):
+        """Negative tol should allow more steps than tol=0."""
+        gold = np.array([1, 2])
+        result_zero = produce(gold, ldl_with_matrices.cmat,
+                              ldl_with_matrices.fmat,
+                              ldl_with_matrices.gmat,
+                              ldl_with_matrices.vmat, tol=0.0)
+        result_neg = produce(gold, ldl_with_matrices.cmat,
+                             ldl_with_matrices.fmat,
+                             ldl_with_matrices.gmat,
+                             ldl_with_matrices.vmat, tol=-1.0)
+        assert len(result_neg) >= len(result_zero)
+
+    def test_ldl_produce_tol_matches_mapping(self, ldl_with_matrices):
+        """LDL.produce with tol should match mapping.produce with tol."""
+        gold = np.array([1, 2])
+        result_ldl = ldl_with_matrices.produce(gold, backend='numpy', tol=0.5)
+        result_standalone = produce(gold, ldl_with_matrices.cmat,
+                                    ldl_with_matrices.fmat,
+                                    ldl_with_matrices.gmat,
+                                    ldl_with_matrices.vmat, backend='numpy',
+                                    tol=0.5)
+        pd.testing.assert_frame_equal(result_ldl, result_standalone)
+
+    @pytest.mark.parametrize('stop', ['convergence', 'boundary'])
+    def test_tol_works_with_both_stop_modes(self, ldl_with_matrices, stop):
+        gold = np.array([1, 2])
+        result = produce(gold, ldl_with_matrices.cmat,
+                         ldl_with_matrices.fmat,
+                         ldl_with_matrices.gmat,
+                         ldl_with_matrices.vmat, stop=stop, tol=0.5)
+        assert isinstance(result, pd.DataFrame)
+
+
+class TestProduceTolTorchBackend:
+    """Test tol parameter with torch backend."""
+
+    @pytest.mark.skipif(not HAS_TORCH, reason='PyTorch not installed')
+    @pytest.mark.parametrize('tol', [0.0, 0.5, 1e6])
+    def test_torch_cpu_matches_numpy(self, ldl_with_matrices, tol):
+        gold = np.array([1, 2])
+        result_numpy = produce(gold, ldl_with_matrices.cmat,
+                               ldl_with_matrices.fmat,
+                               ldl_with_matrices.gmat,
+                               ldl_with_matrices.vmat, backend='numpy',
+                               tol=tol)
+        result_torch = produce(gold, ldl_with_matrices.cmat,
+                               ldl_with_matrices.fmat,
+                               ldl_with_matrices.gmat,
+                               ldl_with_matrices.vmat, backend='torch',
+                               device='cpu', tol=tol)
+        pd.testing.assert_frame_equal(result_numpy, result_torch)
+
+    @pytest.mark.skipif(not HAS_CUDA, reason='CUDA not available')
+    @pytest.mark.parametrize('tol', [0.0, 0.5])
+    def test_torch_cuda_matches_numpy(self, ldl_with_matrices, tol):
+        gold = np.array([1, 2])
+        result_numpy = produce(gold, ldl_with_matrices.cmat,
+                               ldl_with_matrices.fmat,
+                               ldl_with_matrices.gmat,
+                               ldl_with_matrices.vmat, backend='numpy',
+                               tol=tol)
+        result_cuda = produce(gold, ldl_with_matrices.cmat,
+                              ldl_with_matrices.fmat,
+                              ldl_with_matrices.gmat,
+                              ldl_with_matrices.vmat, backend='torch',
+                              device='cuda', tol=tol)
+        pd.testing.assert_frame_equal(result_numpy, result_cuda)
+
+
+class TestGenChatProduceTolParameter:
+    """Test tol parameter for gen_chat_produce."""
+
+    def test_tol_zero_is_default(self, ldl_with_matrices):
+        result_default = gen_chat_produce(ldl_with_matrices.smat,
+                                          ldl_with_matrices.cmat,
+                                          ldl_with_matrices.fmat,
+                                          ldl_with_matrices.gmat,
+                                          ldl_with_matrices.vmat)
+        result_explicit = gen_chat_produce(ldl_with_matrices.smat,
+                                           ldl_with_matrices.cmat,
+                                           ldl_with_matrices.fmat,
+                                           ldl_with_matrices.gmat,
+                                           ldl_with_matrices.vmat, tol=0.0)
+        xr.testing.assert_equal(result_default, result_explicit)
+
+    def test_returns_xarray(self, ldl_with_matrices):
+        result = gen_chat_produce(ldl_with_matrices.smat,
+                                  ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat,
+                                  ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, tol=0.5)
+        assert isinstance(result, xr.DataArray)
+
+
+class TestProduceParadigmTolParameter:
+    """Test tol parameter for produce_paradigm."""
+
+    def test_returns_dataframe(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat,
+                                  ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat,
+                                  ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, tol=0.5)
+        assert isinstance(result, pd.DataFrame)
+        assert 'index' in result.columns
+
+    def test_higher_tol_fewer_or_equal_rows(self, ldl_with_matrices):
+        result_low = produce_paradigm(ldl_with_matrices.smat,
+                                      ldl_with_matrices.cmat,
+                                      ldl_with_matrices.fmat,
+                                      ldl_with_matrices.gmat,
+                                      ldl_with_matrices.vmat, tol=0.0)
+        result_high = produce_paradigm(ldl_with_matrices.smat,
+                                       ldl_with_matrices.cmat,
+                                       ldl_with_matrices.fmat,
+                                       ldl_with_matrices.gmat,
+                                       ldl_with_matrices.vmat, tol=0.5)
+        assert len(result_high) <= len(result_low)

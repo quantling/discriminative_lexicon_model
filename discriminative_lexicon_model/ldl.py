@@ -99,7 +99,7 @@ class LDL:
             self.gen_shat()
         return None
 
-    def produce (self, gold, word=False, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None, stop='convergence'):
+    def produce (self, gold, word=False, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None, stop='convergence', tol=0.0):
         """
         Produce output using discriminative learning.
 
@@ -126,13 +126,16 @@ class LDL:
             'torch' or 'auto', chooses 'cuda' if available, else 'cpu'.
         stop : {'convergence', 'boundary'}
             'convergence' -> Stop when no cue can improve the semantic
-                approximation (all c_prod values <= 0).
+                approximation (all c_prod values <= tol).
             'boundary' -> Also stop when a cue ending with '#' is selected.
+        tol : float
+            Tolerance for the convergence check. The algorithm stops when all
+            c_prod values are <= tol. Default is 0.0.
         """
         return lm.produce(gold, self.cmat, self.fmat, self.gmat, self.vmat,
                           word=word, roundby=roundby, max_attempt=max_attempt,
                           positive=positive, apply_vmat=apply_vmat,
-                          backend=backend, device=device, stop=stop)
+                          backend=backend, device=device, stop=stop, tol=tol)
 
     def produce_batch (self, gold_batch, word=False, roundby=10, max_attempt=50, positive=False, apply_vmat=True, backend='auto', device=None, batch_size=None):
         """
