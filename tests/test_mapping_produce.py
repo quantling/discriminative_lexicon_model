@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from discriminative_lexicon_model.ldl import LDL
-from discriminative_lexicon_model.mapping import produce, gen_chat_produce, gen_chat, produce_paradigm
+from discriminative_lexicon_model.mapping import produce, gen_chat_produce, gen_chat, produce_paradigm, _concat_selected
 
 try:
     import torch
@@ -1056,3 +1056,533 @@ class TestProduceParadigmDuplicateWords:
         sum_rows = result[result['step'] == '(sum)']
         assert len(sum_rows) == 2
         assert list(sum_rows['index']) == [0, 1]
+
+
+# ============================================================
+# Part 5: stop parameter tests
+# ============================================================
+
+class TestProduceStopParameter:
+    """Test the stop parameter for produce."""
+
+    def test_default_is_convergence(self, ldl_with_matrices):
+        """Default stop should be 'convergence'."""
+        gold = np.array([1, 1])
+        result_default = produce(gold, ldl_with_matrices.cmat,
+                                 ldl_with_matrices.fmat,
+                                 ldl_with_matrices.gmat,
+                                 ldl_with_matrices.vmat, backend='numpy')
+        result_explicit = produce(gold, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat,
+                                  ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy',
+                                  stop='convergence')
+        pd.testing.assert_frame_equal(result_default, result_explicit)
+
+    def test_boundary_returns_dataframe(self, ldl_with_matrices):
+        gold = np.array([1, 1])
+        result = produce(gold, ldl_with_matrices.cmat, ldl_with_matrices.fmat,
+                         ldl_with_matrices.gmat, ldl_with_matrices.vmat,
+                         stop='boundary')
+        assert isinstance(result, pd.DataFrame)
+        assert 'Selected' in result.columns
+        assert len(result) > 0
+
+    def test_convergence_returns_dataframe(self, ldl_with_matrices):
+        gold = np.array([1, 1])
+        result = produce(gold, ldl_with_matrices.cmat, ldl_with_matrices.fmat,
+                         ldl_with_matrices.gmat, ldl_with_matrices.vmat,
+                         stop='convergence')
+        assert isinstance(result, pd.DataFrame)
+        assert 'Selected' in result.columns
+        assert len(result) > 0
+
+    def test_boundary_stops_at_hash(self, ldl_with_matrices):
+        """With stop='boundary', last selected cue should end with '#'."""
+        gold = np.array([1, 1])
+        result = produce(gold, ldl_with_matrices.cmat, ldl_with_matrices.fmat,
+                         ldl_with_matrices.gmat, ldl_with_matrices.vmat,
+                         stop='boundary')
+        last_cue = result['Selected'].iloc[-1]
+        assert last_cue.endswith('#')
+
+    def test_convergence_may_continue_past_hash(self, ldl_with_matrices):
+        """With stop='convergence', algorithm does not stop at '#' cues."""
+        gold = np.array([1, 1])
+        result = produce(gold, ldl_with_matrices.cmat, ldl_with_matrices.fmat,
+                         ldl_with_matrices.gmat, ldl_with_matrices.vmat,
+                         stop='convergence')
+        # Find the first '#'-ending cue
+        selected = result['Selected'].tolist()
+        first_hash_idx = None
+        for j, cue in enumerate(selected):
+            is_unigram_onset = j == 0 and len(cue) == 1 and cue == '#'
+            if cue.endswith('#') and not is_unigram_onset:
+                first_hash_idx = j
+                break
+        # convergence either continues past '#' or converges at the same point
+        # (we can't guarantee it continues, but it should not stop early due to '#')
+        assert len(result) >= first_hash_idx + 1 if first_hash_idx is not None else True
+
+    def test_convergence_at_least_as_many_steps_as_boundary(self, ldl_with_matrices):
+        """Convergence mode should produce >= as many steps as boundary mode."""
+        gold = np.array([1, 2])
+        result_boundary = produce(gold, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat,
+                                  ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, stop='boundary')
+        result_convergence = produce(gold, ldl_with_matrices.cmat,
+                                     ldl_with_matrices.fmat,
+                                     ldl_with_matrices.gmat,
+                                     ldl_with_matrices.vmat, stop='convergence')
+        assert len(result_convergence) >= len(result_boundary)
+
+    def test_boundary_prefix_matches_convergence(self, ldl_with_matrices):
+        """Boundary result should be a prefix of convergence result."""
+        gold = np.array([1, 2])
+        result_boundary = produce(gold, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat,
+                                  ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, stop='boundary')
+        result_convergence = produce(gold, ldl_with_matrices.cmat,
+                                     ldl_with_matrices.fmat,
+                                     ldl_with_matrices.gmat,
+                                     ldl_with_matrices.vmat, stop='convergence')
+        n = len(result_boundary)
+        pd.testing.assert_frame_equal(result_convergence.iloc[:n].reset_index(drop=True),
+                                      result_boundary.reset_index(drop=True))
+
+    def test_invalid_stop_raises(self, ldl_with_matrices):
+        gold = np.array([1, 1])
+        with pytest.raises(ValueError, match='Unknown stop'):
+            produce(gold, ldl_with_matrices.cmat, ldl_with_matrices.fmat,
+                    ldl_with_matrices.gmat, ldl_with_matrices.vmat,
+                    stop='invalid')
+
+    @pytest.mark.parametrize('stop', ['convergence', 'boundary'])
+    def test_ldl_produce_matches_mapping_produce(self, ldl_with_matrices, stop):
+        """LDL.produce and mapping.produce should match for both stop modes."""
+        gold = np.array([1, 2])
+        result_ldl = ldl_with_matrices.produce(gold, backend='numpy', stop=stop)
+        result_standalone = produce(gold, ldl_with_matrices.cmat,
+                                    ldl_with_matrices.fmat,
+                                    ldl_with_matrices.gmat,
+                                    ldl_with_matrices.vmat, backend='numpy',
+                                    stop=stop)
+        pd.testing.assert_frame_equal(result_ldl, result_standalone)
+
+    @pytest.mark.parametrize('stop', ['convergence', 'boundary'])
+    def test_apply_vmat_false_with_stop(self, ldl_with_matrices, stop):
+        gold = np.array([1, 1])
+        result = produce(gold, ldl_with_matrices.cmat, ldl_with_matrices.fmat,
+                         ldl_with_matrices.gmat, apply_vmat=False,
+                         stop=stop)
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+
+    @pytest.mark.parametrize('stop', ['convergence', 'boundary'])
+    def test_positive_with_stop(self, ldl_with_matrices, stop):
+        gold = np.array([1, 1])
+        result = produce(gold, ldl_with_matrices.cmat, ldl_with_matrices.fmat,
+                         ldl_with_matrices.gmat, ldl_with_matrices.vmat,
+                         positive=True, stop=stop)
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+
+
+class TestProduceStopTorchBackend:
+    """Test stop parameter with torch backend."""
+
+    @pytest.mark.skipif(not HAS_TORCH, reason='PyTorch not installed')
+    @pytest.mark.parametrize('stop', ['convergence', 'boundary'])
+    def test_torch_cpu_matches_numpy(self, ldl_with_matrices, stop):
+        gold = np.array([1, 2])
+        result_numpy = produce(gold, ldl_with_matrices.cmat,
+                               ldl_with_matrices.fmat,
+                               ldl_with_matrices.gmat,
+                               ldl_with_matrices.vmat, backend='numpy',
+                               stop=stop)
+        result_torch = produce(gold, ldl_with_matrices.cmat,
+                               ldl_with_matrices.fmat,
+                               ldl_with_matrices.gmat,
+                               ldl_with_matrices.vmat, backend='torch',
+                               device='cpu', stop=stop)
+        pd.testing.assert_frame_equal(result_numpy, result_torch)
+
+    @pytest.mark.skipif(not HAS_CUDA, reason='CUDA not available')
+    @pytest.mark.parametrize('stop', ['convergence', 'boundary'])
+    def test_torch_cuda_matches_numpy(self, ldl_with_matrices, stop):
+        gold = np.array([1, 2])
+        result_numpy = produce(gold, ldl_with_matrices.cmat,
+                               ldl_with_matrices.fmat,
+                               ldl_with_matrices.gmat,
+                               ldl_with_matrices.vmat, backend='numpy',
+                               stop=stop)
+        result_cuda = produce(gold, ldl_with_matrices.cmat,
+                              ldl_with_matrices.fmat,
+                              ldl_with_matrices.gmat,
+                              ldl_with_matrices.vmat, backend='torch',
+                              device='cuda', stop=stop)
+        pd.testing.assert_frame_equal(result_numpy, result_cuda)
+
+
+class TestGenChatProduceStopParameter:
+    """Test stop parameter for gen_chat_produce."""
+
+    @pytest.mark.parametrize('stop', ['convergence', 'boundary'])
+    def test_returns_xarray(self, ldl_with_matrices, stop):
+        result = gen_chat_produce(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, stop=stop)
+        assert isinstance(result, xr.DataArray)
+
+    def test_convergence_default(self, ldl_with_matrices):
+        result_default = gen_chat_produce(ldl_with_matrices.smat,
+                                          ldl_with_matrices.cmat,
+                                          ldl_with_matrices.fmat,
+                                          ldl_with_matrices.gmat,
+                                          ldl_with_matrices.vmat)
+        result_explicit = gen_chat_produce(ldl_with_matrices.smat,
+                                           ldl_with_matrices.cmat,
+                                           ldl_with_matrices.fmat,
+                                           ldl_with_matrices.gmat,
+                                           ldl_with_matrices.vmat,
+                                           stop='convergence')
+        xr.testing.assert_equal(result_default, result_explicit)
+
+
+class TestProduceParadigmStopParameter:
+    """Test stop parameter for produce_paradigm."""
+
+    @pytest.mark.parametrize('stop', ['convergence', 'boundary'])
+    def test_returns_dataframe(self, ldl_with_matrices, stop):
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, stop=stop)
+        assert isinstance(result, pd.DataFrame)
+        assert 'index' in result.columns
+        assert 'word' in result.columns
+
+    def test_convergence_at_least_as_many_rows_as_boundary(self, ldl_with_matrices):
+        result_boundary = produce_paradigm(ldl_with_matrices.smat,
+                                           ldl_with_matrices.cmat,
+                                           ldl_with_matrices.fmat,
+                                           ldl_with_matrices.gmat,
+                                           ldl_with_matrices.vmat,
+                                           stop='boundary')
+        result_convergence = produce_paradigm(ldl_with_matrices.smat,
+                                              ldl_with_matrices.cmat,
+                                              ldl_with_matrices.fmat,
+                                              ldl_with_matrices.gmat,
+                                              ldl_with_matrices.vmat,
+                                              stop='convergence')
+        assert len(result_convergence) >= len(result_boundary)
+
+
+# ============================================================
+# Part 6: tol parameter tests
+# ============================================================
+
+class TestProduceTolParameter:
+    """Test the tol parameter for produce."""
+
+    def test_tol_zero_is_default(self, ldl_with_matrices):
+        """tol=0.0 should match the default behavior."""
+        gold = np.array([1, 2])
+        result_default = produce(gold, ldl_with_matrices.cmat,
+                                 ldl_with_matrices.fmat,
+                                 ldl_with_matrices.gmat,
+                                 ldl_with_matrices.vmat, backend='numpy')
+        result_explicit = produce(gold, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat,
+                                  ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, backend='numpy',
+                                  tol=0.0)
+        pd.testing.assert_frame_equal(result_default, result_explicit)
+
+    def test_higher_tol_fewer_or_equal_steps(self, ldl_with_matrices):
+        """Higher tolerance should produce fewer or equal steps."""
+        gold = np.array([1, 2])
+        result_low = produce(gold, ldl_with_matrices.cmat,
+                             ldl_with_matrices.fmat,
+                             ldl_with_matrices.gmat,
+                             ldl_with_matrices.vmat, tol=0.0)
+        result_high = produce(gold, ldl_with_matrices.cmat,
+                              ldl_with_matrices.fmat,
+                              ldl_with_matrices.gmat,
+                              ldl_with_matrices.vmat, tol=1e6)
+        assert len(result_high) <= len(result_low)
+
+    def test_very_large_tol_produces_empty(self, ldl_with_matrices):
+        """A very large tol should stop immediately."""
+        gold = np.array([1, 2])
+        result = produce(gold, ldl_with_matrices.cmat,
+                         ldl_with_matrices.fmat,
+                         ldl_with_matrices.gmat,
+                         ldl_with_matrices.vmat, tol=1e30)
+        assert len(result) == 0
+
+    def test_small_tol_same_as_zero(self, ldl_with_matrices):
+        """A very small tol should behave the same as tol=0."""
+        gold = np.array([1, 2])
+        result_zero = produce(gold, ldl_with_matrices.cmat,
+                              ldl_with_matrices.fmat,
+                              ldl_with_matrices.gmat,
+                              ldl_with_matrices.vmat, tol=0.0)
+        result_tiny = produce(gold, ldl_with_matrices.cmat,
+                              ldl_with_matrices.fmat,
+                              ldl_with_matrices.gmat,
+                              ldl_with_matrices.vmat, tol=1e-30)
+        pd.testing.assert_frame_equal(result_zero, result_tiny)
+
+    def test_tol_prefix_property(self, ldl_with_matrices):
+        """Result with higher tol should be a prefix of result with lower tol."""
+        gold = np.array([1, 2])
+        result_low = produce(gold, ldl_with_matrices.cmat,
+                             ldl_with_matrices.fmat,
+                             ldl_with_matrices.gmat,
+                             ldl_with_matrices.vmat, tol=0.0)
+        result_high = produce(gold, ldl_with_matrices.cmat,
+                              ldl_with_matrices.fmat,
+                              ldl_with_matrices.gmat,
+                              ldl_with_matrices.vmat, tol=0.5)
+        n = len(result_high)
+        if n > 0:
+            pd.testing.assert_frame_equal(
+                result_low.iloc[:n].reset_index(drop=True),
+                result_high.reset_index(drop=True))
+
+    def test_negative_tol(self, ldl_with_matrices):
+        """Negative tol should allow more steps than tol=0."""
+        gold = np.array([1, 2])
+        result_zero = produce(gold, ldl_with_matrices.cmat,
+                              ldl_with_matrices.fmat,
+                              ldl_with_matrices.gmat,
+                              ldl_with_matrices.vmat, tol=0.0)
+        result_neg = produce(gold, ldl_with_matrices.cmat,
+                             ldl_with_matrices.fmat,
+                             ldl_with_matrices.gmat,
+                             ldl_with_matrices.vmat, tol=-1.0)
+        assert len(result_neg) >= len(result_zero)
+
+    def test_ldl_produce_tol_matches_mapping(self, ldl_with_matrices):
+        """LDL.produce with tol should match mapping.produce with tol."""
+        gold = np.array([1, 2])
+        result_ldl = ldl_with_matrices.produce(gold, backend='numpy', tol=0.5)
+        result_standalone = produce(gold, ldl_with_matrices.cmat,
+                                    ldl_with_matrices.fmat,
+                                    ldl_with_matrices.gmat,
+                                    ldl_with_matrices.vmat, backend='numpy',
+                                    tol=0.5)
+        pd.testing.assert_frame_equal(result_ldl, result_standalone)
+
+    @pytest.mark.parametrize('stop', ['convergence', 'boundary'])
+    def test_tol_works_with_both_stop_modes(self, ldl_with_matrices, stop):
+        gold = np.array([1, 2])
+        result = produce(gold, ldl_with_matrices.cmat,
+                         ldl_with_matrices.fmat,
+                         ldl_with_matrices.gmat,
+                         ldl_with_matrices.vmat, stop=stop, tol=0.5)
+        assert isinstance(result, pd.DataFrame)
+
+
+class TestProduceTolTorchBackend:
+    """Test tol parameter with torch backend."""
+
+    @pytest.mark.skipif(not HAS_TORCH, reason='PyTorch not installed')
+    @pytest.mark.parametrize('tol', [0.0, 0.5, 1e6])
+    def test_torch_cpu_matches_numpy(self, ldl_with_matrices, tol):
+        gold = np.array([1, 2])
+        result_numpy = produce(gold, ldl_with_matrices.cmat,
+                               ldl_with_matrices.fmat,
+                               ldl_with_matrices.gmat,
+                               ldl_with_matrices.vmat, backend='numpy',
+                               tol=tol)
+        result_torch = produce(gold, ldl_with_matrices.cmat,
+                               ldl_with_matrices.fmat,
+                               ldl_with_matrices.gmat,
+                               ldl_with_matrices.vmat, backend='torch',
+                               device='cpu', tol=tol)
+        pd.testing.assert_frame_equal(result_numpy, result_torch)
+
+    @pytest.mark.skipif(not HAS_CUDA, reason='CUDA not available')
+    @pytest.mark.parametrize('tol', [0.0, 0.5])
+    def test_torch_cuda_matches_numpy(self, ldl_with_matrices, tol):
+        gold = np.array([1, 2])
+        result_numpy = produce(gold, ldl_with_matrices.cmat,
+                               ldl_with_matrices.fmat,
+                               ldl_with_matrices.gmat,
+                               ldl_with_matrices.vmat, backend='numpy',
+                               tol=tol)
+        result_cuda = produce(gold, ldl_with_matrices.cmat,
+                              ldl_with_matrices.fmat,
+                              ldl_with_matrices.gmat,
+                              ldl_with_matrices.vmat, backend='torch',
+                              device='cuda', tol=tol)
+        pd.testing.assert_frame_equal(result_numpy, result_cuda)
+
+
+class TestGenChatProduceTolParameter:
+    """Test tol parameter for gen_chat_produce."""
+
+    def test_tol_zero_is_default(self, ldl_with_matrices):
+        result_default = gen_chat_produce(ldl_with_matrices.smat,
+                                          ldl_with_matrices.cmat,
+                                          ldl_with_matrices.fmat,
+                                          ldl_with_matrices.gmat,
+                                          ldl_with_matrices.vmat)
+        result_explicit = gen_chat_produce(ldl_with_matrices.smat,
+                                           ldl_with_matrices.cmat,
+                                           ldl_with_matrices.fmat,
+                                           ldl_with_matrices.gmat,
+                                           ldl_with_matrices.vmat, tol=0.0)
+        xr.testing.assert_equal(result_default, result_explicit)
+
+    def test_returns_xarray(self, ldl_with_matrices):
+        result = gen_chat_produce(ldl_with_matrices.smat,
+                                  ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat,
+                                  ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, tol=0.5)
+        assert isinstance(result, xr.DataArray)
+
+
+class TestProduceParadigmTolParameter:
+    """Test tol parameter for produce_paradigm."""
+
+    def test_returns_dataframe(self, ldl_with_matrices):
+        result = produce_paradigm(ldl_with_matrices.smat,
+                                  ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat,
+                                  ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, tol=0.5)
+        assert isinstance(result, pd.DataFrame)
+        assert 'index' in result.columns
+
+    def test_higher_tol_fewer_or_equal_rows(self, ldl_with_matrices):
+        result_low = produce_paradigm(ldl_with_matrices.smat,
+                                      ldl_with_matrices.cmat,
+                                      ldl_with_matrices.fmat,
+                                      ldl_with_matrices.gmat,
+                                      ldl_with_matrices.vmat, tol=0.0)
+        result_high = produce_paradigm(ldl_with_matrices.smat,
+                                       ldl_with_matrices.cmat,
+                                       ldl_with_matrices.fmat,
+                                       ldl_with_matrices.gmat,
+                                       ldl_with_matrices.vmat, tol=0.5)
+        assert len(result_high) <= len(result_low)
+
+
+# ============================================================
+# Part 7: _concat_selected tests
+# ============================================================
+
+class TestConcatSelectedOverlap:
+    """Test _concat_selected with overlap=True."""
+
+    def test_empty_list(self):
+        assert _concat_selected([], overlap=True) == ''
+
+    def test_single_cue(self):
+        assert _concat_selected(['abc'], overlap=True) == 'abc'
+
+    def test_two_overlapping_cues(self):
+        assert _concat_selected(['ab', 'bc'], overlap=True) == 'abc'
+
+    def test_three_overlapping_cues(self):
+        assert _concat_selected(['ab', 'bc', 'cd'], overlap=True) == 'abcd'
+
+    def test_trigrams(self):
+        assert _concat_selected(['#ba', 'ban', 'an#'], overlap=True) == '#ban#'
+
+    def test_trigrams_long_word(self):
+        assert _concat_selected(['#ba', 'ban', 'anb', 'nba', 'ban', 'an#'], overlap=True) == '#banban#'
+
+    def test_matches_concat_cues(self, ldl_with_matrices):
+        """Should match the old concat_cues for overlapping trigrams."""
+        from discriminative_lexicon_model.ldl import concat_cues
+        gold = np.array([1, 2])
+        result = produce(gold, ldl_with_matrices.cmat, ldl_with_matrices.fmat,
+                         ldl_with_matrices.gmat, ldl_with_matrices.vmat,
+                         stop='boundary')
+        selected = result['Selected']
+        old = concat_cues(selected)
+        new = _concat_selected(selected, overlap=True)
+        assert old == new
+
+    def test_pandas_series_input(self):
+        selected = pd.Series(['#ba', 'ban', 'an#'])
+        assert _concat_selected(selected, overlap=True) == '#ban#'
+
+
+class TestConcatSelectedNoOverlap:
+    """Test _concat_selected with overlap=False."""
+
+    def test_empty_list(self):
+        assert _concat_selected([], overlap=False) == ''
+
+    def test_single_cue(self):
+        assert _concat_selected(['abc'], overlap=False) == 'abc'
+
+    def test_simple_concat(self):
+        assert _concat_selected(['a', 'b', 'c'], overlap=False) == 'abc'
+
+    def test_multi_char_cues(self):
+        assert _concat_selected(['ab', 'cd', 'ef'], overlap=False) == 'abcdef'
+
+    def test_pandas_series_input(self):
+        selected = pd.Series(['ab', 'cd'])
+        assert _concat_selected(selected, overlap=False) == 'abcd'
+
+
+class TestConcatSelectedInProduce:
+    """Test that _concat_selected is used correctly in produce and produce_paradigm."""
+
+    def test_produce_word_true_with_vmat(self, ldl_with_matrices):
+        """produce(word=True, apply_vmat=True) should use overlap concatenation."""
+        gold = np.array([1, 1])
+        word_result = produce(gold, ldl_with_matrices.cmat, ldl_with_matrices.fmat,
+                              ldl_with_matrices.gmat, ldl_with_matrices.vmat,
+                              word=True, apply_vmat=True, stop='boundary')
+        df_result = produce(gold, ldl_with_matrices.cmat, ldl_with_matrices.fmat,
+                            ldl_with_matrices.gmat, ldl_with_matrices.vmat,
+                            word=False, apply_vmat=True, stop='boundary')
+        expected = _concat_selected(df_result['Selected'], overlap=True)
+        assert word_result == expected
+
+    def test_produce_word_true_without_vmat(self, ldl_with_matrices):
+        """produce(word=True, apply_vmat=False) should use simple concatenation."""
+        gold = np.array([1, 1])
+        word_result = produce(gold, ldl_with_matrices.cmat, ldl_with_matrices.fmat,
+                              ldl_with_matrices.gmat, word=True,
+                              apply_vmat=False, stop='convergence')
+        df_result = produce(gold, ldl_with_matrices.cmat, ldl_with_matrices.fmat,
+                            ldl_with_matrices.gmat, word=False,
+                            apply_vmat=False, stop='convergence')
+        expected = _concat_selected(df_result['Selected'], overlap=False)
+        assert word_result == expected
+
+    def test_produce_paradigm_pred_with_vmat(self, ldl_with_matrices):
+        """produce_paradigm pred column should use overlap concatenation."""
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  ldl_with_matrices.vmat, apply_vmat=True,
+                                  stop='boundary')
+        for idx in result['index'].unique():
+            word_rows = result[result['index'] == idx]
+            step_rows = word_rows[word_rows['step'] != '(sum)']
+            selected = step_rows['Selected']
+            expected = _concat_selected(selected, overlap=True)
+            assert (word_rows['pred'] == expected).all()
+
+    def test_produce_paradigm_pred_without_vmat(self, ldl_with_matrices):
+        """produce_paradigm pred column should use simple concatenation without vmat."""
+        result = produce_paradigm(ldl_with_matrices.smat, ldl_with_matrices.cmat,
+                                  ldl_with_matrices.fmat, ldl_with_matrices.gmat,
+                                  apply_vmat=False, stop='convergence')
+        for idx in result['index'].unique():
+            word_rows = result[result['index'] == idx]
+            step_rows = word_rows[word_rows['step'] != '(sum)']
+            selected = step_rows['Selected']
+            expected = _concat_selected(selected, overlap=False)
+            assert (word_rows['pred'] == expected).all()
